@@ -7,7 +7,7 @@ Public Class BLP_Orrery_MainForm
     Implements IMessageFilter
 
     Private Const ApplicationTitle As String = "BLP Orrery"
-    Private Const CurrentVersion As String = "1.9"
+    Private Const CurrentVersion As String = "2.0"
     Private Const AuthorName As String = "Alastor Strix'Efuartus"
     Private Const DevelopmentStartYear As String = "2022"
     Private Const RegistryPath As String = "HKEY_CURRENT_USER\WOWBLP_Orrery"
@@ -301,14 +301,15 @@ Public Class BLP_Orrery_MainForm
         Using fileStream As New FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
             Using BLP = New BlpFile(fileStream)
                 If BLP.GetIsValidVersion = False Then Return
-                If BLP.MipMapCount <= 0 Then Throw New InvalidDataException("This BLP file does not contain readable mipmap data.")
+                If BLP.GetReadableMipMapCount() <= 0 Then Throw New InvalidDataException("This BLP file does not contain readable mipmap data.")
 
                 PopulateBlpInfo(BLP)
-                CurrentMipMapIndex = 0
+                CurrentMipMapIndex = BLP.GetFirstReadableMipmapIndex()
+                If CurrentMipMapIndex < 0 Then Throw New InvalidDataException("This BLP file does not contain readable mipmap data.")
                 SetSourceBitmap(BLP.GetBitmap(CurrentMipMapIndex))
                 SetActiveMipmapInfo(CurrentMipMapIndex, BLP.GetMipmapWidth(CurrentMipMapIndex), BLP.GetMipmapHeight(CurrentMipMapIndex))
 
-                If LsBxMipMapList.Items.Count > 1 Then LsBxMipMapList.SelectedIndex = 1
+                If LsBxMipMapList.Items.Count > CurrentMipMapIndex + 1 Then LsBxMipMapList.SelectedIndex = CurrentMipMapIndex + 1
             End Using
         End Using
     End Sub
@@ -369,18 +370,24 @@ Public Class BLP_Orrery_MainForm
 
     Private Sub PopulateBlpInfo(BLP As BlpFile)
         LsBxMipMapList.Items.Clear()
-        LsBxMipMapList.Items.Add(" # | Size      | Bytes    | Offset")
+        LsBxMipMapList.Items.Add(" # | Size      | Bytes      | Offset   | Status")
 
         For i As Integer = 0 To BLP.MipMapCount - 1
-            LsBxMipMapList.Items.Add(String.Format("{0,2} | {1,4}x{2,-4} | {3,8} | {4}",
+            LsBxMipMapList.Items.Add(String.Format("{0,2} | {1,4}x{2,-4} | {3,10} | {4,8} | {5}",
                                                     i,
                                                     BLP.GetMipmapWidth(i),
                                                     BLP.GetMipmapHeight(i),
                                                     BLP.GetBLPMipMapSize(i),
-                                                    BLP.GetBLPMipMapOffset(i)))
+                                                    BLP.GetBLPMipMapOffset(i),
+                                                    BLP.GetMipmapStatusText(i)))
         Next
 
-        LblMipMapCountValue.Text = BLP.MipMapCount.ToString()
+        Dim readableMipMapCount As Integer = BLP.GetReadableMipMapCount()
+        If readableMipMapCount = BLP.MipMapCount Then
+            LblMipMapCountValue.Text = BLP.MipMapCount.ToString()
+        Else
+            LblMipMapCountValue.Text = BLP.MipMapCount.ToString() & " (" & readableMipMapCount.ToString() & " readable)"
+        End If
 
         If BLP.GetBLPEncoding = 1 Then
             LblCompressionValue.Text = "Uncompressed"
@@ -485,10 +492,11 @@ Public Class BLP_Orrery_MainForm
             Using fileStream As New FileStream(CurrentFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
                 Using BLP = New BlpFile(fileStream)
                     If BLP.GetIsValidVersion = False Then Return
-                    If BLP.MipMapCount <= 0 Then Return
+                    If BLP.GetReadableMipMapCount() <= 0 Then Return
 
                     If MipmapIndex < 0 Then MipmapIndex = 0
                     If MipmapIndex >= BLP.MipMapCount Then MipmapIndex = BLP.MipMapCount - 1
+                    If Not BLP.IsMipmapReadable(MipmapIndex) Then Return
 
                     CurrentMipMapIndex = MipmapIndex
                     SetSourceBitmap(BLP.GetBitmap(CurrentMipMapIndex))
@@ -1191,8 +1199,8 @@ Public Class BLP_Orrery_MainForm
         aboutWindow.FormBorderStyle = FormBorderStyle.Sizable
         aboutWindow.MinimizeBox = False
         aboutWindow.ShowInTaskbar = False
-        aboutWindow.ClientSize = New Size(860, 600)
-        aboutWindow.MinimumSize = New Size(700, 500)
+        aboutWindow.ClientSize = New Size(900, 680)
+        aboutWindow.MinimumSize = New Size(720, 560)
         aboutWindow.BackColor = Color.FromArgb(246, 247, 249)
         If Icon IsNot Nothing Then aboutWindow.Icon = Icon
 
@@ -1205,15 +1213,16 @@ Public Class BLP_Orrery_MainForm
         Dim rootLayout As New TableLayoutPanel()
         rootLayout.Dock = DockStyle.Fill
         rootLayout.Padding = New Padding(12)
-        rootLayout.ColumnCount = 2
-        rootLayout.RowCount = 2
-        rootLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 330.0F))
+        rootLayout.ColumnCount = 1
+        rootLayout.RowCount = 3
         rootLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        rootLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 230.0F))
         rootLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
         rootLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 44.0F))
 
         Dim splashBox As New PictureBox()
         splashBox.Dock = DockStyle.Fill
+        splashBox.Margin = New Padding(0, 0, 0, 12)
         splashBox.BackColor = Color.FromArgb(18, 20, 24)
         splashBox.BorderStyle = BorderStyle.FixedSingle
         splashBox.SizeMode = PictureBoxSizeMode.Zoom
@@ -1224,7 +1233,7 @@ Public Class BLP_Orrery_MainForm
         infoLayout.Dock = DockStyle.Fill
         infoLayout.ColumnCount = 1
         infoLayout.RowCount = 6
-        infoLayout.Padding = New Padding(10, 0, 0, 0)
+        infoLayout.Padding = New Padding(0)
         infoLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         infoLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         infoLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
@@ -1286,7 +1295,7 @@ Public Class BLP_Orrery_MainForm
         infoLayout.Controls.Add(changelogHeader, 0, 4)
         infoLayout.Controls.Add(changelogBox, 0, 5)
 
-        rootLayout.Controls.Add(infoLayout, 1, 0)
+        rootLayout.Controls.Add(infoLayout, 0, 1)
 
         Dim okButton As New Button()
         okButton.Text = "OK"
@@ -1301,7 +1310,7 @@ Public Class BLP_Orrery_MainForm
         buttonPanel.Padding = New Padding(0, 8, 0, 0)
         buttonPanel.Controls.Add(okButton)
 
-        rootLayout.Controls.Add(buttonPanel, 1, 1)
+        rootLayout.Controls.Add(buttonPanel, 0, 2)
         aboutWindow.AcceptButton = okButton
         aboutWindow.CancelButton = okButton
         aboutWindow.Controls.Add(rootLayout)
@@ -1352,7 +1361,9 @@ Public Class BLP_Orrery_MainForm
             "1.8 - About and metadata polish" & Environment.NewLine &
             "Added author data, development year, supported format list, context-menu About access, and persistent viewer preferences.",
             "1.9 - Splash art and project history" & Environment.NewLine &
-            "Added thematic Orrery splash artwork and this versioned changelog to the About window."
+            "Added thematic Orrery splash artwork and this versioned changelog to the About window.",
+            "2.0 - Damaged mipmap resilience" & Environment.NewLine &
+            "Added strict BLP mipmap validation in Orrery and ShellExtCore, skipped unreadable table entries, marked damaged mipmaps in the list, and kept the original preview loading whenever a readable full-size image exists."
         })
     End Function
 

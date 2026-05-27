@@ -33,10 +33,8 @@ Friend NotInheritable Class ThumbnailDecoder
         Using memory As New MemoryStream(FileData, False)
             Using blp As New BlpFile(memory)
                 If Not blp.GetIsValidVersion() Then Throw New InvalidDataException("Unsupported BLP file.")
-                Dim mip As Integer = ChooseBestMipmap(blp.MipMapCount,
-                                                       Function(i) blp.GetMipmapWidth(i),
-                                                       Function(i) blp.GetMipmapHeight(i),
-                                                       MaxPixelSize)
+                Dim mip As Integer = ChooseBestReadableBlpMipmap(blp, MaxPixelSize)
+                If mip < 0 Then Throw New InvalidDataException("BLP file does not contain a readable mipmap.")
                 Return blp.GetBitmap(mip)
             End Using
         End Using
@@ -71,6 +69,20 @@ Friend NotInheritable Class ThumbnailDecoder
         Next
 
         Return MipmapCount - 1
+    End Function
+
+    Private Shared Function ChooseBestReadableBlpMipmap(Blp As BlpFile, MaxPixelSize As Integer) As Integer
+        If Blp Is Nothing OrElse Blp.MipMapCount <= 0 Then Return -1
+
+        Dim fallback As Integer = -1
+
+        For i As Integer = 0 To Blp.MipMapCount - 1
+            If Not Blp.IsMipmapReadable(i) Then Continue For
+            fallback = i
+            If Blp.GetMipmapWidth(i) <= MaxPixelSize AndAlso Blp.GetMipmapHeight(i) <= MaxPixelSize Then Return i
+        Next
+
+        Return fallback
     End Function
 
     Private Shared Function ScaleToFit(Source As Bitmap, MaxPixelSize As Integer) As Bitmap

@@ -1,12 +1,21 @@
 WindowsShellExtension Orrery
 ============================
 
+Version: 1.1.0
+
 This package installs Explorer thumbnail previews for:
 
 - .blp Blizzard Picture textures
 - .dds DirectDraw Surface textures
 - BioWare/NWN compact DDS textures
 - .ico Windows icon files
+
+Release notes
+-------------
+
+- Skips damaged BLP mipmap entries instead of failing the thumbnail request.
+- Keeps thumbnail generation working when the original-size mipmap is readable.
+- Reports support for BLP, DDS, BioWare/NWN compact DDS, and ICO files in the assembly metadata.
 
 Requirements
 ------------
@@ -38,4 +47,3 @@ After installation, keep the bin folder and WindowsShellExtension_Orrery.dll in 
 If you move or delete the package folder, uninstall first, then install again from the new location.
 
 The DLL is an unsigned development build. Windows may show normal warnings for unsigned code.
-

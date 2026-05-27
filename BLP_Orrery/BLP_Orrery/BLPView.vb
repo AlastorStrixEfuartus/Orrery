@@ -16,6 +16,7 @@ Module BLPView
         Private Height As Integer ' Y Resolution of the biggest Mipmap
         Private MipMapOffsets As UInteger() = New UInteger(MaxMipMapLevels - 1) {} ' Offset for every Mipmap level. If 0 = no more mitmap level
         Private MipMapSize As UInteger() = New UInteger(MaxMipMapLevels - 1) {} ' Size for every level
+        Private MipMapErrors As String() = New String(MaxMipMapLevels - 1) {}
         Private PaletteBGRA As ARGBColor8() = New ARGBColor8(255) {} ' The color-palette for non-compressed pictures
         Private Str As Stream ' Reference of the stream
         Private IsValidVersion As Boolean = True ' used to pass by if the found image is BLP2 or not 
@@ -59,6 +60,12 @@ Module BLPView
             If MipmapLevel >= count Then Return count - 1
             Return MipmapLevel
         End Function
+
+        Private Sub EnsureReadableMipmap(ByVal MipmapLevel As Integer)
+            If Not IsMipmapReadable(MipmapLevel) Then
+                Throw New InvalidDataException("BLP mipmap " & MipmapLevel.ToString() & " is not readable: " & GetMipmapStatusText(MipmapLevel))
+            End If
+        End Sub
 
         Private Function GetMipDimension(ByVal BaseDimension As Integer, ByVal MipmapLevel As Integer) As Integer
             Dim divisor As Integer = CInt(Math.Pow(2, MipmapLevel))
@@ -172,6 +179,7 @@ Module BLPView
         Private Function GetPictureData(ByVal MipmapLevel As Integer) As Byte()
             If Str IsNot Nothing Then
                 MipmapLevel = ClampMipmapLevel(MipmapLevel)
+                EnsureReadableMipmap(MipmapLevel)
 
                 Dim mipOffset As Long = CLng(MipMapOffsets(MipmapLevel))
                 Dim mipSize As Long = CLng(MipMapSize(MipmapLevel))
@@ -203,30 +211,35 @@ Module BLPView
 
             Dim foundMipMap As Boolean = False
             Dim foundEmptyEntry As Boolean = False
+            Array.Clear(MipMapErrors, 0, MipMapErrors.Length)
 
             For i As Integer = 0 To MaxMipMapLevels - 1
                 Dim mipOffset As UInteger = MipMapOffsets(i)
                 Dim mipSize As UInteger = MipMapSize(i)
+                Dim errorText As String = Nothing
 
                 If mipOffset = 0UI AndAlso mipSize = 0UI Then
                     foundEmptyEntry = True
                     Continue For
                 End If
 
-                If mipOffset = 0UI OrElse mipSize = 0UI Then
-                    Throw New InvalidDataException("BLP mipmap table contains an incomplete entry at level " & i.ToString() & ".")
+                If mipOffset = 0UI Then
+                    errorText = "Size is set but offset is 0."
+                ElseIf mipSize = 0UI Then
+                    errorText = "Offset is set but size is 0."
+                ElseIf foundEmptyEntry Then
+                    errorText = "Entry appears after an empty mipmap slot."
+                ElseIf CLng(mipSize) > Str.Length Then
+                    errorText = "Size exceeds file length."
+                ElseIf mipSize > Integer.MaxValue Then
+                    errorText = "Size is too large to read."
+                ElseIf CLng(mipOffset) >= Str.Length OrElse CLng(mipOffset) + CLng(mipSize) > Str.Length Then
+                    errorText = "Offset and size point past the end of the file."
+                Else
+                    foundMipMap = True
                 End If
 
-                If foundEmptyEntry Then
-                    Throw New InvalidDataException("BLP mipmap table contains data after an empty entry.")
-                End If
-
-                If mipSize > Integer.MaxValue Then Throw New InvalidDataException("BLP mipmap data is too large to read.")
-                If CLng(mipOffset) > Str.Length OrElse CLng(mipOffset) + CLng(mipSize) > Str.Length Then
-                    Throw New InvalidDataException("BLP mipmap table points past the end of the file at level " & i.ToString() & ".")
-                End If
-
-                foundMipMap = True
+                MipMapErrors(i) = errorText
             Next
 
             If Not foundMipMap Then Throw New InvalidDataException("BLP file does not contain readable mipmap data.")
@@ -237,12 +250,12 @@ Module BLPView
 #Region "Public Properties"
         Public ReadOnly Property MipMapCount As Integer
             Get
-                Dim count As Integer = 0
+                Dim lastUsedIndex As Integer = -1
                 For i As Integer = 0 To MipMapOffsets.Length - 1
-                    If MipMapOffsets(i) = 0 OrElse MipMapSize(i) = 0 Then Exit For
-                    count += 1
+                    If MipMapOffsets(i) <> 0UI OrElse MipMapSize(i) <> 0UI Then lastUsedIndex = i
                 Next
-                Return count
+
+                Return lastUsedIndex + 1
             End Get
         End Property
 
@@ -315,6 +328,7 @@ Module BLPView
 
         Public Function GetImageBytes(ByVal MipmapLevel As Integer) As Byte()
             MipmapLevel = ClampMipmapLevel(MipmapLevel)
+            EnsureReadableMipmap(MipmapLevel)
 
             Dim DecompressWidth As Integer = GetMipmapWidth(MipmapLevel)
             Dim DecompressHeight As Integer = GetMipmapHeight(MipmapLevel)
@@ -336,6 +350,7 @@ Module BLPView
 
         Public Function GetBitmap(ByVal MipmapLevel As Integer) As Bitmap
             MipmapLevel = ClampMipmapLevel(MipmapLevel)
+            EnsureReadableMipmap(MipmapLevel)
 
             Dim x As Integer = GetMipmapWidth(MipmapLevel), y As Integer = GetMipmapHeight(MipmapLevel)
             Dim bmp As New Bitmap(x, y, Imaging.PixelFormat.Format32bppArgb)
@@ -373,6 +388,31 @@ Module BLPView
         Public Function GetBLPMipMapSize(ByVal MipmapLevel As Integer) As UInteger
             MipmapLevel = ClampMipmapLevel(MipmapLevel)
             Return MipMapSize(MipmapLevel)
+        End Function
+        Public Function IsMipmapReadable(ByVal MipmapLevel As Integer) As Boolean
+            MipmapLevel = ClampMipmapLevel(MipmapLevel)
+            If MipMapCount <= 0 Then Return False
+            Return MipMapOffsets(MipmapLevel) <> 0UI AndAlso MipMapSize(MipmapLevel) <> 0UI AndAlso String.IsNullOrEmpty(MipMapErrors(MipmapLevel))
+        End Function
+        Public Function GetMipmapStatusText(ByVal MipmapLevel As Integer) As String
+            MipmapLevel = ClampMipmapLevel(MipmapLevel)
+            If MipMapCount <= 0 Then Return "Unused"
+            If IsMipmapReadable(MipmapLevel) Then Return "OK"
+            If Not String.IsNullOrEmpty(MipMapErrors(MipmapLevel)) Then Return "ERROR: " & MipMapErrors(MipmapLevel)
+            Return "Unused"
+        End Function
+        Public Function GetReadableMipMapCount() As Integer
+            Dim count As Integer = 0
+            For i As Integer = 0 To MipMapCount - 1
+                If IsMipmapReadable(i) Then count += 1
+            Next
+            Return count
+        End Function
+        Public Function GetFirstReadableMipmapIndex() As Integer
+            For i As Integer = 0 To MipMapCount - 1
+                If IsMipmapReadable(i) Then Return i
+            Next
+            Return -1
         End Function
         Public Function GetMipmapWidth(ByVal MipmapLevel As Integer) As Integer
             MipmapLevel = ClampMipmapLevel(MipmapLevel)
