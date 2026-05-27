@@ -1,0 +1,38 @@
+# Build outputs
+bin/
+obj/
+**/bin/
+**/obj/
+*.pdb
+*.tlb
+*.cache
+*.user
+*.suo
+*.vsp
+*.vspx
+*.psess
+
+# Packaged archives
+*.7z
+*.zip
+*.rar
+
+# Local/editor state
+.vs/
+.vscode/
+Thumbs.db
+Desktop.ini
+*.uid-zps
+*.zps
+ShellExtensionRefresh.log
+
+# Local sample/test files that are not needed to build the projects
+M2.bt
+BLP_Orrery/*.blp
+BLP_Orrery/*.BLP
+BLP_Orrery/*.png
+BLP_Orrery/*.jpg
+BLP_Orrery/*.ico
+
+# Keep generated project assets, but avoid committing generated binaries.
+WindowsShellExtension_Orrery_Package/bin/
