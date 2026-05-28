@@ -94,6 +94,7 @@ Public Class OrreryThumbnailProvider
     Public Shared Sub Register(type As Type)
         RegisterShellExtension(".blp", "Orrery.BLPFile", "BLP texture")
         RegisterShellExtension(".dds", "Orrery.DDSFile", "DDS texture")
+        RegisterShellExtension(".plt", "Orrery.PLTFile", "Neverwinter Nights PLT texture")
         RegisterShellExtension(".ico", "Orrery.ICOFile", "Windows icon")
 
         Try
@@ -109,6 +110,7 @@ Public Class OrreryThumbnailProvider
     Public Shared Sub Unregister(type As Type)
         UnregisterShellExtension(".blp", "Orrery.BLPFile")
         UnregisterShellExtension(".dds", "Orrery.DDSFile")
+        UnregisterShellExtension(".plt", "Orrery.PLTFile")
         UnregisterShellExtension(".ico", "Orrery.ICOFile")
 
         Try

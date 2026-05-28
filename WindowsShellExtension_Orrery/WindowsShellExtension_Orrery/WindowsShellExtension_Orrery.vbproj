@@ -61,6 +61,7 @@
     <Compile Include="Core\DDSView.vb" />
     <Compile Include="Core\DXTDecompression.vb" />
     <Compile Include="Core\ICOView.vb" />
+    <Compile Include="Core\PLTView.vb" />
     <Compile Include="My Project\AssemblyInfo.vb" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />

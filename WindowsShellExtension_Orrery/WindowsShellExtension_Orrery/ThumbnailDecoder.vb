@@ -16,6 +16,8 @@ Friend NotInheritable Class ThumbnailDecoder
 
         If IsBlp(FileData) Then
             decoded = DecodeBlp(FileData, MaxPixelSize)
+        ElseIf IsPlt(FileData) Then
+            decoded = DecodePlt(FileData)
         ElseIf IsIco(FileData) Then
             decoded = DecodeIco(FileData, MaxPixelSize)
         Else
@@ -37,6 +39,13 @@ Friend NotInheritable Class ThumbnailDecoder
                 If mip < 0 Then Throw New InvalidDataException("BLP file does not contain a readable mipmap.")
                 Return blp.GetBitmap(mip)
             End Using
+        End Using
+    End Function
+
+    Private Shared Function DecodePlt(FileData As Byte()) As Bitmap
+        Using memory As New MemoryStream(FileData, False)
+            Dim plt As New PltFile(memory)
+            Return plt.GetBitmap()
         End Using
     End Function
 
@@ -122,6 +131,13 @@ Friend NotInheritable Class ThumbnailDecoder
                FileData(1) = AscW("L"c) AndAlso
                FileData(2) = AscW("P"c) AndAlso
                FileData(3) = AscW("2"c)
+    End Function
+
+    Private Shared Function IsPlt(FileData As Byte()) As Boolean
+        Return FileData.Length >= 24 AndAlso
+               FileData(0) = AscW("P"c) AndAlso
+               FileData(1) = AscW("L"c) AndAlso
+               FileData(2) = AscW("T"c)
     End Function
 
     Private Shared Function IsIco(FileData As Byte()) As Boolean

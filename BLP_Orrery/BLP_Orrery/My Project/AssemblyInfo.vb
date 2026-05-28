@@ -9,7 +9,7 @@ Imports System.Runtime.InteropServices
 ' Review the values of the assembly attributes
 
 <Assembly: AssemblyTitle("BLP Orrery")>
-<Assembly: AssemblyDescription("Texture browser and converter for BLP, DDS, TGA, ICO, PNG, and JPG images.")>
+<Assembly: AssemblyDescription("Texture browser and converter for BLP, DDS, PLT, TGA, ICO, PNG, and JPG images.")>
 <Assembly: AssemblyCompany("Alastor Strix'Efuartus")>
 <Assembly: AssemblyProduct("BLP Orrery")>
 <Assembly: AssemblyCopyright("Copyright (c) Alastor Strix'Efuartus")>
@@ -31,5 +31,5 @@ Imports System.Runtime.InteropServices
 ' by using the '*' as shown below:
 ' <Assembly: AssemblyVersion("1.0.*")> 
 
-<Assembly: AssemblyVersion("2.0.0.0")>
-<Assembly: AssemblyFileVersion("2.0.0.0")>
+<Assembly: AssemblyVersion("2.1.0.0")>
+<Assembly: AssemblyFileVersion("2.1.0.0")>

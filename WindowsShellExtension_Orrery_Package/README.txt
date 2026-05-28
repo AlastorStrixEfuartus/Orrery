@@ -1,13 +1,14 @@
 WindowsShellExtension Orrery
 ============================
 
-Version: 1.1.0
+Version: 1.2.0
 
 This package installs Explorer thumbnail previews for:
 
 - .blp Blizzard Picture textures
 - .dds DirectDraw Surface textures
 - BioWare/NWN compact DDS textures
+- .plt Neverwinter Nights player texture layer files
 - .ico Windows icon files
 
 Release notes
@@ -15,7 +16,8 @@ Release notes
 
 - Skips damaged BLP mipmap entries instead of failing the thumbnail request.
 - Keeps thumbnail generation working when the original-size mipmap is readable.
-- Reports support for BLP, DDS, BioWare/NWN compact DDS, and ICO files in the assembly metadata.
+- Adds PLT thumbnail previews using a color-coded luminance/layer render.
+- Reports support for BLP, DDS, BioWare/NWN compact DDS, PLT, and ICO files in the assembly metadata.
 
 Requirements
 ------------

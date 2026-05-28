@@ -7,7 +7,7 @@ Public Class BLP_Orrery_MainForm
     Implements IMessageFilter
 
     Private Const ApplicationTitle As String = "BLP Orrery"
-    Private Const CurrentVersion As String = "2.0"
+    Private Const CurrentVersion As String = "2.1"
     Private Const AuthorName As String = "Alastor Strix'Efuartus"
     Private Const DevelopmentStartYear As String = "2022"
     Private Const RegistryPath As String = "HKEY_CURRENT_USER\WOWBLP_Orrery"
@@ -33,7 +33,7 @@ Public Class BLP_Orrery_MainForm
     Private NavigationTimer As Timer = Nothing
     Private PendingNavigationFilePath As String = String.Empty
     Private PendingNavigationIndex As Integer = -1
-    Private ReadOnly SupportedImageExtensions As String() = {".BLP", ".DDS", ".TGA", ".ICO", ".PNG", ".JPG", ".JPEG"}
+    Private ReadOnly SupportedImageExtensions As String() = {".BLP", ".DDS", ".PLT", ".TGA", ".ICO", ".PNG", ".JPG", ".JPEG"}
 
     Protected Overrides Function ProcessCmdKey(ByRef msg As Message, keyData As Keys) As Boolean
         If keyData = Keys.Left Then
@@ -225,9 +225,10 @@ Public Class BLP_Orrery_MainForm
     End Sub
 
     Private Sub OpenImage_OFD1_Click(sender As Object, e As EventArgs) 
-        OFD1TextureToSplit.Filter = "All Supported Image Files|*.BLP;*.DDS;*.TGA;*.ICO;*.PNG;*.JPG;*.JPEG|" &
+        OFD1TextureToSplit.Filter = "All Supported Image Files|*.BLP;*.DDS;*.PLT;*.TGA;*.ICO;*.PNG;*.JPG;*.JPEG|" &
                                     "Blizzard Picture (*.BLP)|*.BLP|" &
                                     "DirectDraw Surface (*.DDS)|*.DDS|" &
+                                    "Neverwinter Nights PLT (*.PLT)|*.PLT|" &
                                     "Truevision TGA (*.TGA)|*.TGA|" &
                                     "Windows Icon (*.ICO)|*.ICO|" &
                                     "Portable Network Graphic (*.PNG)|*.PNG|" &
@@ -277,6 +278,8 @@ Public Class BLP_Orrery_MainForm
                 LoadBlpImage(CurrentFilePath)
             ElseIf IsDdsFile(CurrentFilePath) Then
                 LoadDdsImage(CurrentFilePath)
+            ElseIf IsPltFile(CurrentFilePath) Then
+                LoadPltImage(CurrentFilePath)
             ElseIf IsTgaFile(CurrentFilePath) Then
                 LoadTgaImage(CurrentFilePath)
             ElseIf IsIcoFile(CurrentFilePath) Then
@@ -323,6 +326,19 @@ Public Class BLP_Orrery_MainForm
             CurrentMipMapIndex = 0
             SetSourceBitmap(DDS.GetBitmap(CurrentMipMapIndex))
             SetActiveMipmapInfo(CurrentMipMapIndex, DDS.GetMipmapWidth(CurrentMipMapIndex), DDS.GetMipmapHeight(CurrentMipMapIndex))
+
+            If LsBxMipMapList.Items.Count > 1 Then LsBxMipMapList.SelectedIndex = 1
+        End Using
+    End Sub
+
+    Private Sub LoadPltImage(FilePath As String)
+        Using fileStream As New FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
+            Dim PLT As New PltFile(fileStream)
+
+            PopulatePltInfo(PLT)
+            CurrentMipMapIndex = 0
+            SetSourceBitmap(PLT.GetBitmap())
+            SetActiveMipmapInfo(0, PLT.GetPltWidth(), PLT.GetPltHeight())
 
             If LsBxMipMapList.Items.Count > 1 Then LsBxMipMapList.SelectedIndex = 1
         End Using
@@ -438,6 +454,23 @@ Public Class BLP_Orrery_MainForm
         LblAlphaEncodingValue.Text = DDS.GetFormatName()
         LblAlphaChannelValue.Text = DDS.GetAlphaChannelText()
         LblMipMapCountValue.Text = DDS.MipMapCount.ToString()
+    End Sub
+
+    Private Sub PopulatePltInfo(PLT As PltFile)
+        LsBxMipMapList.Items.Clear()
+        LsBxMipMapList.Items.Add(" # | Size      | Bytes    | Offset")
+        LsBxMipMapList.Items.Add(String.Format("{0,2} | {1,4}x{2,-4} | {3,8} | {4}",
+                                                0,
+                                                PLT.GetPltWidth(),
+                                                PLT.GetPltHeight(),
+                                                PLT.GetPixelDataLength(),
+                                                PLT.GetPixelDataOffset()))
+        LsBxMipMapList.Items.Add("Layers: " & PLT.GetLayerSummary())
+
+        LblCompressionValue.Text = "PLT " & PLT.GetVersionText()
+        LblAlphaEncodingValue.Text = PLT.GetFormatName() & " - " & PLT.GetPreviewModeText()
+        LblAlphaChannelValue.Text = PLT.GetAlphaChannelText()
+        LblMipMapCountValue.Text = "1"
     End Sub
 
     Private Sub PopulateTgaInfo(TGA As TgaFile)
@@ -1266,6 +1299,7 @@ Public Class BLP_Orrery_MainForm
         formatsLabel.Text = String.Join(Environment.NewLine, New String() {
             "BLP - Blizzard Picture, including RAW3",
             "DDS - DirectDraw Surface, including BioWare/NWN compact DDS",
+            "PLT - Neverwinter Nights player texture layers",
             "TGA - Truevision TGA",
             "ICO - Windows Icon",
             "PNG - Portable Network Graphics",
@@ -1363,7 +1397,9 @@ Public Class BLP_Orrery_MainForm
             "1.9 - Splash art and project history" & Environment.NewLine &
             "Added thematic Orrery splash artwork and this versioned changelog to the About window.",
             "2.0 - Damaged mipmap resilience" & Environment.NewLine &
-            "Added strict BLP mipmap validation in Orrery and ShellExtCore, skipped unreadable table entries, marked damaged mipmaps in the list, and kept the original preview loading whenever a readable full-size image exists."
+            "Added strict BLP mipmap validation in Orrery and ShellExtCore, skipped unreadable table entries, marked damaged mipmaps in the list, and kept the original preview loading whenever a readable full-size image exists.",
+            "2.1 - NWN PLT previews" & Environment.NewLine &
+            "Added Neverwinter Nights PLT preview support in Orrery and Explorer thumbnails using a color-coded luminance/layer render."
         })
     End Function
 
@@ -1381,6 +1417,10 @@ Public Class BLP_Orrery_MainForm
 
     Private Function IsDdsFile(FilePath As String) As Boolean
         Return Path.GetExtension(FilePath).Equals(".DDS", StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    Private Function IsPltFile(FilePath As String) As Boolean
+        Return Path.GetExtension(FilePath).Equals(".PLT", StringComparison.OrdinalIgnoreCase)
     End Function
 
     Private Function IsTgaFile(FilePath As String) As Boolean

@@ -31,6 +31,5 @@ Write-Host 'Registering Orrery Explorer thumbnail provider...'
 & $regAsm $dllPath /codebase /tlb | Out-Host
 
 Write-Host ''
-Write-Host 'Registered thumbnail handlers for .blp, .dds, and .ico files.'
+Write-Host 'Registered thumbnail handlers for .blp, .dds, .plt, and .ico files.'
 Write-Host 'If Explorer still shows old thumbnails, restart Explorer, sign out/in, or clear the thumbnail cache.'
-

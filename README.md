@@ -1,6 +1,6 @@
 # BLP Orrery
 
-BLP Orrery is a Windows texture preview and inspection tool for game and modding workflows. It focuses on formats that normal image viewers often do not handle well, especially Blizzard BLP files and BioWare/Neverwinter Nights compact DDS textures.
+BLP Orrery is a Windows texture preview and inspection tool for game and modding workflows. It focuses on formats that normal image viewers often do not handle well, especially Blizzard BLP files and BioWare/Neverwinter Nights DDS and PLT textures.
 
 The repository contains two companion projects:
 
@@ -14,6 +14,7 @@ BLP Orrery can open:
 - `.blp` Blizzard Picture textures, including DXT-compressed and RAW3 BGRA files
 - `.dds` DirectDraw Surface textures
 - BioWare/NWN compact `.dds` textures
+- `.plt` Neverwinter Nights player texture layer files
 - `.tga` Truevision TGA images
 - `.ico` Windows icon files
 - `.png`
@@ -24,6 +25,7 @@ The Windows Shell Extension provides Explorer thumbnails for:
 - `.blp`
 - `.dds`
 - BioWare/NWN compact `.dds`
+- `.plt`
 - `.ico`
 
 ## BLP Orrery Features
@@ -77,4 +79,3 @@ Build the shell extension:
 Created by **Alastor Strix'Efuartus**.
 
 Development began in 2022.
-

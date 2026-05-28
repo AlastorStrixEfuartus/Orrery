@@ -86,6 +86,7 @@
     <Compile Include="DDSView.vb" />
     <Compile Include="DXTDecompression.vb" />
     <Compile Include="ICOView.vb" />
+    <Compile Include="PLTView.vb" />
     <Compile Include="TGAView.vb" />
     <Compile Include="BLP_Orrery.vb" />
     <Compile Include="BLP_Orrery.Designer.vb">
