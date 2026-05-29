@@ -36,3 +36,6 @@ BLP_Orrery/*.ico
 
 # Keep generated project assets, but avoid committing generated binaries.
 WindowsShellExtension_Orrery_Package/bin/
+PLTTools/
+pfh0_xchest5.mdl
+pfh0_xchest5.plt
