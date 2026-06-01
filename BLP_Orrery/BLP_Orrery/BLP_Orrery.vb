@@ -7,7 +7,7 @@ Public Class BLP_Orrery_MainForm
     Implements IMessageFilter
 
     Private Const ApplicationTitle As String = "BLP Orrery"
-    Private Const CurrentVersion As String = "2.1"
+    Private Const CurrentVersion As String = "2.2"
     Private Const AuthorName As String = "Alastor Strix'Efuartus"
     Private Const DevelopmentStartYear As String = "2022"
     Private Const RegistryPath As String = "HKEY_CURRENT_USER\WOWBLP_Orrery"
@@ -21,6 +21,8 @@ Public Class BLP_Orrery_MainForm
     Private CurrentFilePath As String = String.Empty
     Private CurrentMipMapIndex As Integer = 0
     Private CurrentSourceBitmap As Bitmap = Nothing
+    Private CurrentPltSelectedLayer As Integer = -1
+    Private CurrentPltLayerIds As Integer() = New Integer() {}
     Private MaskModeEnabled As Boolean = False
     Private IsLoadingImage As Boolean = False
     Private MainContextMenu As ContextMenuStrip = Nothing
@@ -71,6 +73,7 @@ Public Class BLP_Orrery_MainForm
     Private Sub LoadApplicationSettings()
         FileInformationsToolStripMenuItem.CheckOnClick = True
         ResizeByTextureMenuItem.CheckOnClick = True
+        PreviewActualSizeMenuItem.CheckOnClick = True
 
         Dim savedIndex As Object = My.Computer.Registry.GetValue(RegistryPath, "SaveAsFormatIndex", Nothing)
         Dim selectedIndex As Integer = 0
@@ -113,6 +116,14 @@ Public Class BLP_Orrery_MainForm
         End If
 
         ResizeByTextureMenuItem.Checked = resizeByTexture
+
+        Dim savedPreviewActualSize As Object = My.Computer.Registry.GetValue(RegistryPath, "PreviewActualSize", Nothing)
+        Dim previewActualSize As Boolean = False
+        If savedPreviewActualSize IsNot Nothing Then
+            Boolean.TryParse(savedPreviewActualSize.ToString(), previewActualSize)
+        End If
+
+        PreviewActualSizeMenuItem.Checked = previewActualSize
         UpdateTextureViewSizing()
     End Sub
 
@@ -122,6 +133,7 @@ Public Class BLP_Orrery_MainForm
         My.Computer.Registry.SetValue(RegistryPath, "TransparencyBackgroundArgb", TransparencyBackgroundColor.ToArgb().ToString())
         My.Computer.Registry.SetValue(RegistryPath, "FileInformationVisible", FileInformationsToolStripMenuItem.Checked.ToString())
         My.Computer.Registry.SetValue(RegistryPath, "ResizeByTexture", ResizeByTextureMenuItem.Checked.ToString())
+        My.Computer.Registry.SetValue(RegistryPath, "PreviewActualSize", PreviewActualSizeMenuItem.Checked.ToString())
     End Sub
 
     Private Sub OpenStartupImageFromCommandLine(args As String())
@@ -268,6 +280,8 @@ Public Class BLP_Orrery_MainForm
             IsLoadingImage = True
             CurrentFilePath = Path.GetFullPath(FilePath)
             CurrentMipMapIndex = 0
+            CurrentPltSelectedLayer = -1
+            CurrentPltLayerIds = New Integer() {}
 
             TxBxTextureName.Text = Path.GetFileName(CurrentFilePath)
             TxBxTextureDirectory.Text = EnsureTrailingSlash(Path.GetDirectoryName(CurrentFilePath))
@@ -465,12 +479,20 @@ Public Class BLP_Orrery_MainForm
                                                 PLT.GetPltHeight(),
                                                 PLT.GetPixelDataLength(),
                                                 PLT.GetPixelDataOffset()))
-        LsBxMipMapList.Items.Add("Layers: " & PLT.GetLayerSummary())
+        LsBxMipMapList.Items.Add("Layer | Name      | Pixels")
+
+        CurrentPltLayerIds = PLT.GetPresentLayerIds()
+        For Each layerId As Integer In CurrentPltLayerIds
+            LsBxMipMapList.Items.Add(String.Format("{0,5} | {1,-9} | {2}",
+                                                    layerId,
+                                                    PltFile.GetLayerName(layerId),
+                                                    PLT.GetLayerPixelCount(layerId)))
+        Next
 
         LblCompressionValue.Text = "PLT " & PLT.GetVersionText()
         LblAlphaEncodingValue.Text = PLT.GetFormatName() & " - " & PLT.GetPreviewModeText()
         LblAlphaChannelValue.Text = PLT.GetAlphaChannelText()
-        LblMipMapCountValue.Text = "1"
+        LblMipMapCountValue.Text = "1 (" & CurrentPltLayerIds.Length.ToString() & " layers)"
     End Sub
 
     Private Sub PopulateTgaInfo(TGA As TgaFile)
@@ -578,6 +600,32 @@ Public Class BLP_Orrery_MainForm
             End Using
         Catch ex As Exception
             MessageBox.Show("Could not load icon image " & MipmapIndex.ToString() & ":" & Environment.NewLine & ex.Message, "BLP Orrery", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    Private Sub LoadCurrentPltLayerFromListIndex(ListIndex As Integer)
+        If String.IsNullOrWhiteSpace(CurrentFilePath) OrElse Not IsPltFile(CurrentFilePath) Then Return
+
+        Dim layerId As Integer = -1
+        If ListIndex >= 3 Then
+            Dim layerIndex As Integer = ListIndex - 3
+            If layerIndex < 0 OrElse layerIndex >= CurrentPltLayerIds.Length Then Return
+            layerId = CurrentPltLayerIds(layerIndex)
+        ElseIf ListIndex <> 1 Then
+            Return
+        End If
+
+        Try
+            Using fileStream As New FileStream(CurrentFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
+                Dim PLT As New PltFile(fileStream)
+
+                CurrentPltSelectedLayer = layerId
+                CurrentMipMapIndex = 0
+                SetSourceBitmap(PLT.GetBitmap(CurrentPltSelectedLayer))
+                SetActiveMipmapInfo(0, PLT.GetPltWidth(), PLT.GetPltHeight())
+            End Using
+        Catch ex As Exception
+            MessageBox.Show("Could not load PLT layer preview:" & Environment.NewLine & ex.Message, "BLP Orrery", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 
@@ -802,12 +850,24 @@ Public Class BLP_Orrery_MainForm
         If ResizeByTextureMenuItem.Checked Then
             PreviewZoomIsManual = True
             PreviewZoomFactor = 1.0F
-        Else
+        ElseIf PreviewActualSizeMenuItem Is Nothing OrElse Not PreviewActualSizeMenuItem.Checked Then
             PreviewZoomIsManual = False
             PreviewZoomFactor = 1.0F
         End If
 
         UpdateTextureViewSizing()
+    End Sub
+
+    Private Sub PreviewActualSizeMenuItem_CheckedChanged(sender As Object, e As EventArgs) Handles PreviewActualSizeMenuItem.CheckedChanged
+        If PreviewActualSizeMenuItem.Checked Then
+            PreviewZoomIsManual = True
+            PreviewZoomFactor = 1.0F
+        ElseIf ResizeByTextureMenuItem Is Nothing OrElse Not ResizeByTextureMenuItem.Checked Then
+            PreviewZoomIsManual = False
+            PreviewZoomFactor = 1.0F
+        End If
+
+        If Not IsLoadingImage Then ApplyPreviewZoomLayout()
     End Sub
 
     Private Sub BackgroundClrMenuItem_Click(sender As Object, e As EventArgs) Handles BackgroundClrMenuItem.Click
@@ -825,6 +885,8 @@ Public Class BLP_Orrery_MainForm
                 LoadCurrentBlpMipmap(LsBxMipMapList.SelectedIndex - 1)
             ElseIf IsDdsFile(CurrentFilePath) Then
                 LoadCurrentDdsMipmap(LsBxMipMapList.SelectedIndex - 1)
+            ElseIf IsPltFile(CurrentFilePath) Then
+                LoadCurrentPltLayerFromListIndex(LsBxMipMapList.SelectedIndex)
             ElseIf IsIcoFile(CurrentFilePath) Then
                 LoadCurrentIcoMipmap(LsBxMipMapList.SelectedIndex - 1)
             End If
@@ -1057,13 +1119,13 @@ Public Class BLP_Orrery_MainForm
 
     Private Sub ResetPreviewZoomForNewImage()
         PreviewZoomFactor = 1.0F
-        PreviewZoomIsManual = ResizeByTextureMenuItem IsNot Nothing AndAlso ResizeByTextureMenuItem.Checked
+        PreviewZoomIsManual = ShouldPreviewAtActualSize()
     End Sub
 
     Private Sub UpdateTextureViewSizing(Optional TextureWidth As Integer = 0, Optional TextureHeight As Integer = 0)
         If PicBxTextureView Is Nothing OrElse ResizeByTextureMenuItem Is Nothing Then Return
 
-        If ResizeByTextureMenuItem.Checked Then
+        If ShouldPreviewAtActualSize() Then
             PreviewZoomIsManual = True
             PreviewZoomFactor = 1.0F
         End If
@@ -1091,18 +1153,25 @@ Public Class BLP_Orrery_MainForm
 
         Dim targetPreviewWidth As Integer = Math.Max(TextureWidth, 320)
         Dim targetPreviewHeight As Integer = Math.Max(TextureHeight, 128)
-        Dim widthDelta As Integer = targetPreviewWidth - PicBxTextureView.ClientSize.Width
-        Dim heightDelta As Integer = targetPreviewHeight - PicBxTextureView.ClientSize.Height
+        Dim nonPreviewWidth As Integer = Math.Max(0, ClientSize.Width - PnlTextureView.ClientSize.Width)
+        Dim nonPreviewHeight As Integer = Math.Max(0, ClientSize.Height - PnlTextureView.ClientSize.Height)
+        Dim minClientWidth As Integer = Math.Max(1, MinimumSize.Width - Math.Max(0, Size.Width - ClientSize.Width))
+        Dim minClientHeight As Integer = Math.Max(1, MinimumSize.Height - Math.Max(0, Size.Height - ClientSize.Height))
+        Dim targetClientWidth As Integer = Math.Max(minClientWidth, nonPreviewWidth + targetPreviewWidth)
+        Dim targetClientHeight As Integer = Math.Max(minClientHeight, nonPreviewHeight + targetPreviewHeight)
 
-        If widthDelta = 0 AndAlso heightDelta = 0 Then Return
-
-        Dim targetClientWidth As Integer = Math.Max(1, ClientSize.Width + widthDelta)
-        Dim targetClientHeight As Integer = Math.Max(1, ClientSize.Height + heightDelta)
+        If ClientSize.Width = targetClientWidth AndAlso ClientSize.Height = targetClientHeight Then Return
 
         ClientSize = New Size(targetClientWidth, targetClientHeight)
         PerformLayout()
         PositionNavigationButtons()
     End Sub
+
+    Private Function ShouldPreviewAtActualSize() As Boolean
+        If ResizeByTextureMenuItem IsNot Nothing AndAlso ResizeByTextureMenuItem.Checked Then Return True
+        If PreviewActualSizeMenuItem IsNot Nothing AndAlso PreviewActualSizeMenuItem.Checked Then Return True
+        Return False
+    End Function
 
     Private Sub UpdateDisplayButtons()
         If BtnMask IsNot Nothing Then BtnMask.BackColor = If(MaskModeEnabled, Color.LightSteelBlue, Color.Silver)
@@ -1399,7 +1468,9 @@ Public Class BLP_Orrery_MainForm
             "2.0 - Damaged mipmap resilience" & Environment.NewLine &
             "Added strict BLP mipmap validation in Orrery and ShellExtCore, skipped unreadable table entries, marked damaged mipmaps in the list, and kept the original preview loading whenever a readable full-size image exists.",
             "2.1 - NWN PLT previews" & Environment.NewLine &
-            "Added Neverwinter Nights PLT preview support in Orrery and Explorer thumbnails using a color-coded luminance/layer render."
+            "Added Neverwinter Nights PLT preview support in Orrery and Explorer thumbnails using a color-coded luminance/layer render.",
+            "2.2 - Preview sizing and PLT layer inspection" & Environment.NewLine &
+            "Added a persistent 1:1 Preview Actual Size mode, fixed cumulative Resize By Texture window growth, and made PLT layer rows selectable with dimmed non-selected layers."
         })
     End Function
 

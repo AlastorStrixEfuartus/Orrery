@@ -40,6 +40,7 @@ Partial Class BLP_Orrery_MainForm
         Me.RenderTransparencyMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.BackgroundClrMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.ResizeByTextureMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.PreviewActualSizeMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.AboutToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.GrBxFileInfo = New System.Windows.Forms.GroupBox()
         Me.LblActiveMipMaipValue = New System.Windows.Forms.Label()
@@ -183,7 +184,7 @@ Partial Class BLP_Orrery_MainForm
         '
         'ToolsToolStripMenuItem
         '
-        Me.ToolsToolStripMenuItem.DropDownItems.AddRange(New System.Windows.Forms.ToolStripItem() {Me.RenderTransparencyMenuItem, Me.ResizeByTextureMenuItem})
+        Me.ToolsToolStripMenuItem.DropDownItems.AddRange(New System.Windows.Forms.ToolStripItem() {Me.RenderTransparencyMenuItem, Me.ResizeByTextureMenuItem, Me.PreviewActualSizeMenuItem})
         Me.ToolsToolStripMenuItem.Name = "ToolsToolStripMenuItem"
         Me.ToolsToolStripMenuItem.Size = New System.Drawing.Size(61, 20)
         Me.ToolsToolStripMenuItem.Text = "Settings"
@@ -209,6 +210,13 @@ Partial Class BLP_Orrery_MainForm
         Me.ResizeByTextureMenuItem.Name = "ResizeByTextureMenuItem"
         Me.ResizeByTextureMenuItem.Size = New System.Drawing.Size(183, 22)
         Me.ResizeByTextureMenuItem.Text = "Resize By Texture"
+        '
+        'PreviewActualSizeMenuItem
+        '
+        Me.PreviewActualSizeMenuItem.CheckOnClick = True
+        Me.PreviewActualSizeMenuItem.Name = "PreviewActualSizeMenuItem"
+        Me.PreviewActualSizeMenuItem.Size = New System.Drawing.Size(183, 22)
+        Me.PreviewActualSizeMenuItem.Text = "Preview Actual Size"
         '
         'AboutToolStripMenuItem
         '
@@ -584,6 +592,7 @@ Partial Class BLP_Orrery_MainForm
     Friend WithEvents PnlTextureViewAndToolBar As Panel
     Friend WithEvents PnlTextureView As Panel
     Friend WithEvents ResizeByTextureMenuItem As ToolStripMenuItem
+    Friend WithEvents PreviewActualSizeMenuItem As ToolStripMenuItem
     Friend WithEvents BackgroundClrMenuItem As ToolStripMenuItem
     Friend WithEvents ClrPickBackGround As ColorDialog
     Friend WithEvents LblResolutionValue As Label

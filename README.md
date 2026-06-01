@@ -39,8 +39,10 @@ The Windows Shell Extension provides Explorer thumbnails for:
 - Transparency preview toggle with configurable matte color
 - Alpha mask preview mode
 - Zoom in/out buttons and mouse-wheel zoom
+- 1:1 actual-size preview mode without resizing the application window
 - Save As export to PNG and JPG
 - File information panel with format, alpha, resolution, mipmap size, and offset data
+- PLT layer rows with selectable layer highlighting
 - Optional resize-to-texture mode for 1:1 inspection
 - About window with project splash art, supported formats, author information, and changelog
 

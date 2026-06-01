@@ -14,6 +14,7 @@ Module PLTView
 
         Private ReadOnly Data As Byte()
         Private ReadOnly LayerPresence As Boolean() = New Boolean(255) {}
+        Private ReadOnly LayerPixelCounts As Integer() = New Integer(255) {}
         Private Width As Integer
         Private Height As Integer
         Private VersionText As String
@@ -32,7 +33,7 @@ Module PLTView
             ParseHeader()
         End Sub
 
-        Public Function GetBitmap() As Bitmap
+        Public Function GetBitmap(Optional HighlightLayerId As Integer = -1) As Bitmap
             Dim pixels As Byte() = New Byte(CheckedToInteger(CLng(Width) * CLng(Height) * 4L, "PLT image is too large.") - 1) {}
 
             For sourceY As Integer = 0 To Height - 1
@@ -47,6 +48,7 @@ Module PLTView
                     Dim blue As Integer = value
 
                     ApplyLayerPreviewColor(layerId, red, green, blue)
+                    If HighlightLayerId >= 0 AndAlso layerId <> HighlightLayerId Then DimLayerPreviewColor(red, green, blue)
 
                     Dim targetOffset As Integer = ((targetY * Width) + x) * 4
                     pixels(targetOffset) = CByte(blue)
@@ -116,6 +118,21 @@ Module PLTView
             Return String.Join(", ", visibleLayers) & ", +" & (layers.Count - 12).ToString() & " more"
         End Function
 
+        Public Function GetPresentLayerIds() As Integer()
+            Dim layers As New List(Of Integer)()
+
+            For i As Integer = 0 To LayerPresence.Length - 1
+                If LayerPresence(i) Then layers.Add(i)
+            Next
+
+            Return layers.ToArray()
+        End Function
+
+        Public Function GetLayerPixelCount(LayerId As Integer) As Integer
+            If LayerId < 0 OrElse LayerId >= LayerPixelCounts.Length Then Return 0
+            Return LayerPixelCounts(LayerId)
+        End Function
+
         Private Sub ParseHeader()
             If Not HasPltSignature() Then Throw New InvalidDataException("Unsupported PLT signature.")
 
@@ -138,7 +155,9 @@ Module PLTView
             PixelDataLength = CInt(pixelBytesLong)
 
             For i As Integer = 0 To PixelCount - 1
-                LayerPresence(Data(HeaderLength + (i * PixelStride) + 1)) = True
+                Dim layerId As Byte = Data(HeaderLength + (i * PixelStride) + 1)
+                LayerPresence(layerId) = True
+                LayerPixelCounts(layerId) += 1
             Next
         End Sub
 
@@ -180,7 +199,13 @@ Module PLTView
             End Select
         End Sub
 
-        Private Shared Function GetLayerName(LayerId As Integer) As String
+        Private Shared Sub DimLayerPreviewColor(ByRef Red As Integer, ByRef Green As Integer, ByRef Blue As Integer)
+            Red = Math.Max(0, Math.Min(255, Red \ 4))
+            Green = Math.Max(0, Math.Min(255, Green \ 4))
+            Blue = Math.Max(0, Math.Min(255, Blue \ 4))
+        End Sub
+
+        Public Shared Function GetLayerName(LayerId As Integer) As String
             Select Case LayerId
                 Case 0
                     Return "Skin"
