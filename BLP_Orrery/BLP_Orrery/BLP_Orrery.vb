@@ -7,7 +7,7 @@ Public Class BLP_Orrery_MainForm
     Implements IMessageFilter
 
     Private Const ApplicationTitle As String = "BLP Orrery"
-    Private Const CurrentVersion As String = "2.2"
+    Private Const CurrentVersion As String = "2.3"
     Private Const AuthorName As String = "Alastor Strix'Efuartus"
     Private Const DevelopmentStartYear As String = "2022"
     Private Const RegistryPath As String = "HKEY_CURRENT_USER\WOWBLP_Orrery"
@@ -16,6 +16,7 @@ Public Class BLP_Orrery_MainForm
     Private Const MaxPreviewZoomFactor As Single = 32.0F
     Private Const PreviewZoomStep As Single = 1.25F
     Private Const NavigationCoalesceIntervalMs As Integer = 55
+    Private Const MinimumRestoredWindowVisiblePixels As Integer = 64
     Private Const WM_MOUSEWHEEL As Integer = &H20A
 
     Private CurrentFilePath As String = String.Empty
@@ -61,6 +62,7 @@ Public Class BLP_Orrery_MainForm
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Application.AddMessageFilter(Me)
         LoadApplicationSettings()
+        EnsureWindowLocationIsVisible()
         UpdateWindowTitle()
         EnableMainContextMenu()
         EnableMainFrameDragDrop()
@@ -69,6 +71,29 @@ Public Class BLP_Orrery_MainForm
         UpdateNavigationButtons()
         OpenStartupImageFromCommandLine(Environment.GetCommandLineArgs())
     End Sub
+
+    Private Sub EnsureWindowLocationIsVisible()
+        If IsWindowVisibleOnAnyScreen(Bounds) Then Return
+
+        Dim workingArea As Rectangle = Screen.PrimaryScreen.WorkingArea
+        Dim targetX As Integer = workingArea.Left + Math.Max(0, (workingArea.Width - Width) \ 2)
+        Dim targetY As Integer = workingArea.Top + Math.Max(0, (workingArea.Height - Height) \ 2)
+
+        StartPosition = FormStartPosition.Manual
+        Location = New Point(targetX, targetY)
+        My.Settings.WindowPoint = Location
+    End Sub
+
+    Private Function IsWindowVisibleOnAnyScreen(windowBounds As Rectangle) As Boolean
+        For Each display As Screen In Screen.AllScreens
+            Dim visibleArea As Rectangle = Rectangle.Intersect(windowBounds, display.WorkingArea)
+            If visibleArea.Width >= MinimumRestoredWindowVisiblePixels AndAlso visibleArea.Height >= MinimumRestoredWindowVisiblePixels Then
+                Return True
+            End If
+        Next
+
+        Return False
+    End Function
 
     Private Sub LoadApplicationSettings()
         FileInformationsToolStripMenuItem.CheckOnClick = True
@@ -1389,6 +1414,7 @@ Public Class BLP_Orrery_MainForm
         changelogBox.BackColor = Color.White
         changelogBox.BorderStyle = BorderStyle.FixedSingle
         changelogBox.Font = New Font("Consolas", 8.75F, FontStyle.Regular)
+        changelogBox.TabStop = False
         changelogBox.Text = GetAboutChangelogText()
 
         infoLayout.Controls.Add(titleLabel, 0, 0)
@@ -1417,6 +1443,12 @@ Public Class BLP_Orrery_MainForm
         aboutWindow.AcceptButton = okButton
         aboutWindow.CancelButton = okButton
         aboutWindow.Controls.Add(rootLayout)
+        AddHandler aboutWindow.Shown,
+            Sub()
+                changelogBox.SelectionStart = 0
+                changelogBox.SelectionLength = 0
+                okButton.Focus()
+            End Sub
 
         Return aboutWindow
     End Function
@@ -1470,7 +1502,9 @@ Public Class BLP_Orrery_MainForm
             "2.1 - NWN PLT previews" & Environment.NewLine &
             "Added Neverwinter Nights PLT preview support in Orrery and Explorer thumbnails using a color-coded luminance/layer render.",
             "2.2 - Preview sizing and PLT layer inspection" & Environment.NewLine &
-            "Added a persistent 1:1 Preview Actual Size mode, fixed cumulative Resize By Texture window growth, and made PLT layer rows selectable with dimmed non-selected layers."
+            "Added a persistent 1:1 Preview Actual Size mode, fixed cumulative Resize By Texture window growth, and made PLT layer rows selectable with dimmed non-selected layers.",
+            "2.3 - Window restore failsafe" & Environment.NewLine &
+            "Added a startup guard that keeps valid remembered window positions but recenters Orrery if the saved position is outside the visible monitor layout, and prevented About changelog text from opening fully selected."
         })
     End Function
 
