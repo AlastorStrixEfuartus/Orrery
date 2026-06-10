@@ -133,6 +133,35 @@ Module PLTView
             Return LayerPixelCounts(LayerId)
         End Function
 
+        Public Sub SaveResized(OutputPath As String, NewWidth As Integer, NewHeight As Integer)
+            If String.IsNullOrWhiteSpace(OutputPath) Then Throw New ArgumentException("Output path is required.", "OutputPath")
+            ValidateDimensions(NewWidth, NewHeight)
+
+            Dim outputLength As Integer = CheckedToInteger(CLng(HeaderLength) + (CLng(NewWidth) * CLng(NewHeight) * CLng(PixelStride)), "Resized PLT image is too large.")
+            Dim outputData As Byte() = New Byte(outputLength - 1) {}
+
+            Buffer.BlockCopy(Data, 0, outputData, 0, HeaderLength)
+            WriteInt32LittleEndian(outputData, 16, NewWidth)
+            WriteInt32LittleEndian(outputData, 20, NewHeight)
+
+            For targetY As Integer = 0 To NewHeight - 1
+                Dim sourceY As Integer = MapResizeCoordinate(targetY, NewHeight, Height)
+                Dim sourceRowOffset As Integer = HeaderLength + (sourceY * Width * PixelStride)
+                Dim targetRowOffset As Integer = HeaderLength + (targetY * NewWidth * PixelStride)
+
+                For targetX As Integer = 0 To NewWidth - 1
+                    Dim sourceX As Integer = MapResizeCoordinate(targetX, NewWidth, Width)
+                    Dim sourceOffset As Integer = sourceRowOffset + (sourceX * PixelStride)
+                    Dim targetOffset As Integer = targetRowOffset + (targetX * PixelStride)
+
+                    outputData(targetOffset) = Data(sourceOffset)
+                    outputData(targetOffset + 1) = Data(sourceOffset + 1)
+                Next
+            Next
+
+            File.WriteAllBytes(OutputPath, outputData)
+        End Sub
+
         Private Sub ParseHeader()
             If Not HasPltSignature() Then Throw New InvalidDataException("Unsupported PLT signature.")
 
@@ -142,6 +171,8 @@ Module PLTView
 
             If Width <= 0 OrElse Height <= 0 Then Throw New InvalidDataException("PLT dimensions are invalid.")
             If Width > MaxDimension OrElse Height > MaxDimension Then Throw New InvalidDataException("PLT dimensions are too large.")
+
+            ValidateDimensions(Width, Height)
 
             Dim pixelCountLong As Long = CLng(Width) * CLng(Height)
             Dim pixelBytesLong As Long = pixelCountLong * PixelStride
@@ -236,6 +267,34 @@ Module PLTView
             If Value < 0L OrElse Value > Integer.MaxValue Then Throw New InvalidDataException(ErrorMessage)
             Return CInt(Value)
         End Function
+
+        Private Shared Sub ValidateDimensions(ValueWidth As Integer, ValueHeight As Integer)
+            If ValueWidth <= 0 OrElse ValueHeight <= 0 Then Throw New InvalidDataException("PLT dimensions are invalid.")
+            If ValueWidth > MaxDimension OrElse ValueHeight > MaxDimension Then Throw New InvalidDataException("PLT dimensions are too large.")
+
+            Dim pixelCountLong As Long = CLng(ValueWidth) * CLng(ValueHeight)
+            Dim pixelBytesLong As Long = pixelCountLong * CLng(PixelStride)
+
+            If pixelCountLong <= 0L OrElse pixelCountLong > Integer.MaxValue Then Throw New InvalidDataException("PLT image is too large.")
+            If pixelBytesLong > Integer.MaxValue Then Throw New InvalidDataException("PLT pixel data is too large.")
+        End Sub
+
+        Private Shared Function MapResizeCoordinate(TargetIndex As Integer, TargetSize As Integer, SourceSize As Integer) As Integer
+            If SourceSize <= 1 OrElse TargetSize <= 1 Then Return 0
+
+            Dim sourceCoordinate As Double = (((CDbl(TargetIndex) + 0.5R) * CDbl(SourceSize)) / CDbl(TargetSize)) - 0.5R
+            Dim sourceIndex As Integer = CInt(Math.Floor(sourceCoordinate + 0.5R))
+
+            If sourceIndex < 0 Then Return 0
+            If sourceIndex >= SourceSize Then Return SourceSize - 1
+            Return sourceIndex
+        End Function
+
+        Private Shared Sub WriteInt32LittleEndian(Target As Byte(), Offset As Integer, Value As Integer)
+            Dim bytes As Byte() = BitConverter.GetBytes(Value)
+            If Not BitConverter.IsLittleEndian Then Array.Reverse(bytes)
+            Buffer.BlockCopy(bytes, 0, Target, Offset, bytes.Length)
+        End Sub
 
     End Class
 

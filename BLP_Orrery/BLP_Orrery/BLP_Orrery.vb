@@ -7,7 +7,7 @@ Public Class BLP_Orrery_MainForm
     Implements IMessageFilter
 
     Private Const ApplicationTitle As String = "BLP Orrery"
-    Private Const CurrentVersion As String = "2.3"
+    Private Const CurrentVersion As String = "2.4"
     Private Const AuthorName As String = "Alastor Strix'Efuartus"
     Private Const DevelopmentStartYear As String = "2022"
     Private Const RegistryPath As String = "HKEY_CURRENT_USER\WOWBLP_Orrery"
@@ -17,6 +17,7 @@ Public Class BLP_Orrery_MainForm
     Private Const PreviewZoomStep As Single = 1.25F
     Private Const NavigationCoalesceIntervalMs As Integer = 55
     Private Const MinimumRestoredWindowVisiblePixels As Integer = 64
+    Private Const MaxPltResizeDimension As Integer = 16384
     Private Const WM_MOUSEWHEEL As Integer = &H20A
 
     Private CurrentFilePath As String = String.Empty
@@ -34,6 +35,7 @@ Public Class BLP_Orrery_MainForm
     Private SiblingImageCacheFiles As String() = New String() {}
     Private SiblingImageCacheLastWriteUtc As DateTime = DateTime.MinValue
     Private NavigationTimer As Timer = Nothing
+    Private ToolbarToolTip As ToolTip = Nothing
     Private PendingNavigationFilePath As String = String.Empty
     Private PendingNavigationIndex As Integer = -1
     Private ReadOnly SupportedImageExtensions As String() = {".BLP", ".DDS", ".PLT", ".TGA", ".ICO", ".PNG", ".JPG", ".JPEG"}
@@ -56,6 +58,7 @@ Public Class BLP_Orrery_MainForm
         Application.RemoveMessageFilter(Me)
         SaveApplicationSettings()
         DisposeNavigationTimer()
+        DisposeToolbarToolTip()
         DisposeCurrentImages()
     End Sub
 
@@ -63,6 +66,7 @@ Public Class BLP_Orrery_MainForm
         Application.AddMessageFilter(Me)
         LoadApplicationSettings()
         EnsureWindowLocationIsVisible()
+        ConfigureToolbarTooltips()
         UpdateWindowTitle()
         EnableMainContextMenu()
         EnableMainFrameDragDrop()
@@ -94,6 +98,21 @@ Public Class BLP_Orrery_MainForm
 
         Return False
     End Function
+
+    Private Sub ConfigureToolbarTooltips()
+        If ToolbarToolTip Is Nothing Then ToolbarToolTip = New ToolTip()
+        If BtnResizePlt IsNot Nothing Then ToolbarToolTip.SetToolTip(BtnResizePlt, "Resize PLT resolution")
+        If BtnZoomOut IsNot Nothing Then ToolbarToolTip.SetToolTip(BtnZoomOut, "Zoom out")
+        If BtnZoomIn IsNot Nothing Then ToolbarToolTip.SetToolTip(BtnZoomIn, "Zoom in")
+        If BtnPreviousImage IsNot Nothing Then ToolbarToolTip.SetToolTip(BtnPreviousImage, "Previous image")
+        If BtnNextImage IsNot Nothing Then ToolbarToolTip.SetToolTip(BtnNextImage, "Next image")
+    End Sub
+
+    Private Sub DisposeToolbarToolTip()
+        If ToolbarToolTip Is Nothing Then Return
+        ToolbarToolTip.Dispose()
+        ToolbarToolTip = Nothing
+    End Sub
 
     Private Sub LoadApplicationSettings()
         FileInformationsToolStripMenuItem.CheckOnClick = True
@@ -253,6 +272,183 @@ Public Class BLP_Orrery_MainForm
             saveCopy.Save(OutputPath, ImageFormat.Jpeg)
         End Using
     End Sub
+
+    Private Sub ResizePltResolution(sender As Object, e As EventArgs) Handles BtnResizePlt.Click, ResizePltToolStripMenuItem.Click
+        If String.IsNullOrWhiteSpace(CurrentFilePath) OrElse Not IsPltFile(CurrentFilePath) OrElse Not File.Exists(CurrentFilePath) Then
+            MessageBox.Show("Open a PLT file before changing resolution.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        Try
+            Dim PLT As PltFile = Nothing
+            Using fileStream As New FileStream(CurrentFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
+                PLT = New PltFile(fileStream)
+            End Using
+
+            Dim newWidth As Integer = PLT.GetPltWidth()
+            Dim newHeight As Integer = PLT.GetPltHeight()
+
+            If ShowPltResizeDialog(PLT.GetPltWidth(), PLT.GetPltHeight(), newWidth, newHeight) <> DialogResult.OK Then Return
+
+            If newWidth = PLT.GetPltWidth() AndAlso newHeight = PLT.GetPltHeight() Then
+                MessageBox.Show("The requested PLT resolution is the same as the current file.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Return
+            End If
+
+            Using saveDialog As New SaveFileDialog()
+                saveDialog.Title = "Save Resized PLT As"
+                saveDialog.Filter = "Neverwinter Nights PLT (*.plt)|*.plt"
+                saveDialog.AddExtension = True
+                saveDialog.DefaultExt = "plt"
+                saveDialog.OverwritePrompt = True
+                saveDialog.FileName = Path.GetFileNameWithoutExtension(CurrentFilePath) & "_" & newWidth.ToString() & "x" & newHeight.ToString() & ".plt"
+                saveDialog.InitialDirectory = Path.GetDirectoryName(CurrentFilePath)
+
+                If saveDialog.ShowDialog(Me) <> DialogResult.OK Then Return
+
+                If Path.GetFullPath(saveDialog.FileName).Equals(CurrentFilePath, StringComparison.OrdinalIgnoreCase) Then
+                    MessageBox.Show("Choose a different output file so the original PLT is not overwritten.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    Return
+                End If
+
+                PLT.SaveResized(saveDialog.FileName, newWidth, newHeight)
+                LoadImage(saveDialog.FileName)
+            End Using
+        Catch ex As Exception
+            MessageBox.Show("Could not resize PLT file:" & Environment.NewLine & ex.Message, ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    Private Function ShowPltResizeDialog(CurrentWidth As Integer, CurrentHeight As Integer, ByRef NewWidth As Integer, ByRef NewHeight As Integer) As DialogResult
+        Dim selectedWidth As Integer = CurrentWidth
+        Dim selectedHeight As Integer = CurrentHeight
+
+        Using dialog As New Form()
+            dialog.Text = "Resize PLT Resolution"
+            dialog.StartPosition = FormStartPosition.CenterParent
+            dialog.FormBorderStyle = FormBorderStyle.FixedDialog
+            dialog.MinimizeBox = False
+            dialog.MaximizeBox = False
+            dialog.ShowInTaskbar = False
+            dialog.ClientSize = New Size(300, 162)
+            If Icon IsNot Nothing Then dialog.Icon = Icon
+
+            Dim layout As New TableLayoutPanel()
+            layout.Dock = DockStyle.Fill
+            layout.Padding = New Padding(12)
+            layout.ColumnCount = 2
+            layout.RowCount = 4
+            layout.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 92.0F))
+            layout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+            layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+            layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+            layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+            layout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+
+            Dim currentLabel As New Label()
+            currentLabel.AutoSize = True
+            currentLabel.Dock = DockStyle.Fill
+            currentLabel.Text = "Current: " & CurrentWidth.ToString() & " x " & CurrentHeight.ToString()
+            layout.SetColumnSpan(currentLabel, 2)
+
+            Dim widthLabel As New Label()
+            widthLabel.AutoSize = True
+            widthLabel.Dock = DockStyle.Fill
+            widthLabel.Text = "Width"
+            widthLabel.TextAlign = ContentAlignment.MiddleLeft
+
+            Dim widthInput As New NumericUpDown()
+            widthInput.Dock = DockStyle.Fill
+            widthInput.Minimum = 1D
+            widthInput.Maximum = MaxPltResizeDimension
+            widthInput.Value = Math.Min(MaxPltResizeDimension, Math.Max(1, CurrentWidth))
+
+            Dim heightLabel As New Label()
+            heightLabel.AutoSize = True
+            heightLabel.Dock = DockStyle.Fill
+            heightLabel.Text = "Height"
+            heightLabel.TextAlign = ContentAlignment.MiddleLeft
+
+            Dim heightInput As New NumericUpDown()
+            heightInput.Dock = DockStyle.Fill
+            heightInput.Minimum = 1D
+            heightInput.Maximum = MaxPltResizeDimension
+            heightInput.Value = Math.Min(MaxPltResizeDimension, Math.Max(1, CurrentHeight))
+
+            Dim buttonPanel As New FlowLayoutPanel()
+            buttonPanel.Dock = DockStyle.Fill
+            buttonPanel.FlowDirection = FlowDirection.RightToLeft
+            buttonPanel.WrapContents = False
+            buttonPanel.Padding = New Padding(0, 10, 0, 0)
+            layout.SetColumnSpan(buttonPanel, 2)
+
+            Dim okButton As New Button()
+            okButton.Text = "Save"
+            okButton.DialogResult = DialogResult.OK
+            okButton.Size = New Size(82, 26)
+
+            Dim cancelButton As New Button()
+            cancelButton.Text = "Cancel"
+            cancelButton.DialogResult = DialogResult.Cancel
+            cancelButton.Size = New Size(82, 26)
+
+            AddHandler okButton.Click,
+                Sub()
+                    Dim requestedWidth As Integer = CInt(widthInput.Value)
+                    Dim requestedHeight As Integer = CInt(heightInput.Value)
+
+                    If Not ValidatePltResizeDimensions(requestedWidth, requestedHeight) Then
+                        dialog.DialogResult = DialogResult.None
+                        Return
+                    End If
+
+                    selectedWidth = requestedWidth
+                    selectedHeight = requestedHeight
+                End Sub
+
+            buttonPanel.Controls.Add(okButton)
+            buttonPanel.Controls.Add(cancelButton)
+
+            layout.Controls.Add(currentLabel, 0, 0)
+            layout.Controls.Add(widthLabel, 0, 1)
+            layout.Controls.Add(widthInput, 1, 1)
+            layout.Controls.Add(heightLabel, 0, 2)
+            layout.Controls.Add(heightInput, 1, 2)
+            layout.Controls.Add(buttonPanel, 0, 3)
+
+            dialog.Controls.Add(layout)
+            dialog.AcceptButton = okButton
+            dialog.CancelButton = cancelButton
+
+            Dim result As DialogResult = dialog.ShowDialog(Me)
+            If result = DialogResult.OK Then
+                NewWidth = selectedWidth
+                NewHeight = selectedHeight
+            End If
+
+            Return result
+        End Using
+    End Function
+
+    Private Function ValidatePltResizeDimensions(RequestedWidth As Integer, RequestedHeight As Integer) As Boolean
+        If RequestedWidth <= 0 OrElse RequestedHeight <= 0 Then
+            MessageBox.Show("PLT dimensions must be greater than zero.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return False
+        End If
+
+        If RequestedWidth > MaxPltResizeDimension OrElse RequestedHeight > MaxPltResizeDimension Then
+            MessageBox.Show("PLT dimensions cannot be larger than " & MaxPltResizeDimension.ToString() & " pixels.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return False
+        End If
+
+        Dim pixelBytes As Long = CLng(RequestedWidth) * CLng(RequestedHeight) * 2L
+        If pixelBytes > Integer.MaxValue Then
+            MessageBox.Show("The requested PLT resolution is too large to save safely.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return False
+        End If
+
+        Return True
+    End Function
 
     Private Sub TxtbxWoWPath_TextChanged(sender As Object, e As EventArgs) Handles TxBxTextureDirectory.TextChanged
         If TxBxTextureDirectory.Text.Length > 1 AndAlso Not TxBxTextureDirectory.Text.EndsWith("\") Then
@@ -1118,7 +1314,7 @@ Public Class BLP_Orrery_MainForm
     End Function
 
     Private Sub PositionNavigationButtons()
-        If BtnPreviousImage Is Nothing OrElse BtnNextImage Is Nothing OrElse BtnZoomOut Is Nothing OrElse BtnZoomIn Is Nothing OrElse PnlToolBar Is Nothing Then Return
+        If BtnPreviousImage Is Nothing OrElse BtnNextImage Is Nothing OrElse BtnZoomOut Is Nothing OrElse BtnZoomIn Is Nothing OrElse BtnResizePlt Is Nothing OrElse PnlToolBar Is Nothing Then Return
 
         Dim buttonGap As Integer = 6
         Dim buttonLeft As Integer = 4
@@ -1128,10 +1324,12 @@ Public Class BLP_Orrery_MainForm
         BtnNextImage.Location = New Point(buttonLeft + BtnPreviousImage.Width + buttonGap, buttonTop)
         BtnZoomOut.Location = New Point(BtnNextImage.Right + buttonGap, buttonTop)
         BtnZoomIn.Location = New Point(BtnZoomOut.Right + buttonGap, buttonTop)
+        BtnResizePlt.Location = New Point(BtnZoomIn.Right + buttonGap, buttonTop)
         BtnPreviousImage.BringToFront()
         BtnNextImage.BringToFront()
         BtnZoomOut.BringToFront()
         BtnZoomIn.BringToFront()
+        BtnResizePlt.BringToFront()
     End Sub
 
     Private Sub UpdateNavigationButtons()
@@ -1203,8 +1401,11 @@ Public Class BLP_Orrery_MainForm
         If BtnTransparency IsNot Nothing Then BtnTransparency.BackColor = If(RenderTransparencyMenuItem.Checked, Color.LightSteelBlue, Color.Silver)
 
         Dim hasImage As Boolean = CurrentSourceBitmap IsNot Nothing
+        Dim canResizePlt As Boolean = hasImage AndAlso Not String.IsNullOrWhiteSpace(CurrentFilePath) AndAlso IsPltFile(CurrentFilePath)
         If BtnZoomOut IsNot Nothing Then BtnZoomOut.Enabled = hasImage
         If BtnZoomIn IsNot Nothing Then BtnZoomIn.Enabled = hasImage
+        If BtnResizePlt IsNot Nothing Then BtnResizePlt.Enabled = canResizePlt
+        If ResizePltToolStripMenuItem IsNot Nothing Then ResizePltToolStripMenuItem.Enabled = canResizePlt
     End Sub
 
     Private Sub ZoomPreview(ZoomIn As Boolean, AnchorPoint As Point)
@@ -1504,7 +1705,9 @@ Public Class BLP_Orrery_MainForm
             "2.2 - Preview sizing and PLT layer inspection" & Environment.NewLine &
             "Added a persistent 1:1 Preview Actual Size mode, fixed cumulative Resize By Texture window growth, and made PLT layer rows selectable with dimmed non-selected layers.",
             "2.3 - Window restore failsafe" & Environment.NewLine &
-            "Added a startup guard that keeps valid remembered window positions but recenters Orrery if the saved position is outside the visible monitor layout, and prevented About changelog text from opening fully selected."
+            "Added a startup guard that keeps valid remembered window positions but recenters Orrery if the saved position is outside the visible monitor layout, and prevented About changelog text from opening fully selected.",
+            "2.4 - PLT resolution export" & Environment.NewLine &
+            "Added a PLT-only resolution control that saves a new resized PLT file by resampling luminance/layer byte pairs without flattening the layered texture data."
         })
     End Function
 

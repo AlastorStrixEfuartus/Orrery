@@ -32,6 +32,7 @@ Partial Class BLP_Orrery_MainForm
         Me.FileToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.OpenFileToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.SaveAsToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ResizePltToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.ToolStripSeparator1 = New System.Windows.Forms.ToolStripSeparator()
         Me.QuitToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.ViewToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
@@ -61,6 +62,7 @@ Partial Class BLP_Orrery_MainForm
         Me.BtnNextImage = New System.Windows.Forms.Button()
         Me.BtnZoomOut = New System.Windows.Forms.Button()
         Me.BtnZoomIn = New System.Windows.Forms.Button()
+        Me.BtnResizePlt = New System.Windows.Forms.Button()
         Me.BtnMask = New System.Windows.Forms.Button()
         Me.BtnTransparency = New System.Windows.Forms.Button()
         Me.ComBxSaveAsFormat = New System.Windows.Forms.ComboBox()
@@ -138,7 +140,7 @@ Partial Class BLP_Orrery_MainForm
         '
         'FileToolStripMenuItem
         '
-        Me.FileToolStripMenuItem.DropDownItems.AddRange(New System.Windows.Forms.ToolStripItem() {Me.OpenFileToolStripMenuItem, Me.SaveAsToolStripMenuItem, Me.ToolStripSeparator1, Me.QuitToolStripMenuItem})
+        Me.FileToolStripMenuItem.DropDownItems.AddRange(New System.Windows.Forms.ToolStripItem() {Me.OpenFileToolStripMenuItem, Me.SaveAsToolStripMenuItem, Me.ResizePltToolStripMenuItem, Me.ToolStripSeparator1, Me.QuitToolStripMenuItem})
         Me.FileToolStripMenuItem.Name = "FileToolStripMenuItem"
         Me.FileToolStripMenuItem.Size = New System.Drawing.Size(37, 20)
         Me.FileToolStripMenuItem.Text = "File"
@@ -152,18 +154,25 @@ Partial Class BLP_Orrery_MainForm
         'SaveAsToolStripMenuItem
         '
         Me.SaveAsToolStripMenuItem.Name = "SaveAsToolStripMenuItem"
-        Me.SaveAsToolStripMenuItem.Size = New System.Drawing.Size(126, 22)
+        Me.SaveAsToolStripMenuItem.Size = New System.Drawing.Size(154, 22)
         Me.SaveAsToolStripMenuItem.Text = "Save As ..."
+        '
+        'ResizePltToolStripMenuItem
+        '
+        Me.ResizePltToolStripMenuItem.Enabled = False
+        Me.ResizePltToolStripMenuItem.Name = "ResizePltToolStripMenuItem"
+        Me.ResizePltToolStripMenuItem.Size = New System.Drawing.Size(154, 22)
+        Me.ResizePltToolStripMenuItem.Text = "Resize PLT ..."
         '
         'ToolStripSeparator1
         '
         Me.ToolStripSeparator1.Name = "ToolStripSeparator1"
-        Me.ToolStripSeparator1.Size = New System.Drawing.Size(123, 6)
+        Me.ToolStripSeparator1.Size = New System.Drawing.Size(151, 6)
         '
         'QuitToolStripMenuItem
         '
         Me.QuitToolStripMenuItem.Name = "QuitToolStripMenuItem"
-        Me.QuitToolStripMenuItem.Size = New System.Drawing.Size(126, 22)
+        Me.QuitToolStripMenuItem.Size = New System.Drawing.Size(154, 22)
         Me.QuitToolStripMenuItem.Text = "Quit"
         '
         'ViewToolStripMenuItem
@@ -386,6 +395,7 @@ Partial Class BLP_Orrery_MainForm
         Me.PnlToolBar.Controls.Add(Me.BtnNextImage)
         Me.PnlToolBar.Controls.Add(Me.BtnZoomOut)
         Me.PnlToolBar.Controls.Add(Me.BtnZoomIn)
+        Me.PnlToolBar.Controls.Add(Me.BtnResizePlt)
         Me.PnlToolBar.Controls.Add(Me.BtnMask)
         Me.PnlToolBar.Controls.Add(Me.BtnTransparency)
         Me.PnlToolBar.Controls.Add(Me.ComBxSaveAsFormat)
@@ -449,6 +459,20 @@ Partial Class BLP_Orrery_MainForm
         Me.BtnZoomIn.TabIndex = 18
         Me.BtnZoomIn.Text = "+"
         Me.BtnZoomIn.UseVisualStyleBackColor = False
+        '
+        'BtnResizePlt
+        '
+        Me.BtnResizePlt.Anchor = CType((System.Windows.Forms.AnchorStyles.Bottom Or System.Windows.Forms.AnchorStyles.Left), System.Windows.Forms.AnchorStyles)
+        Me.BtnResizePlt.BackColor = System.Drawing.Color.Silver
+        Me.BtnResizePlt.Enabled = False
+        Me.BtnResizePlt.FlatStyle = System.Windows.Forms.FlatStyle.Popup
+        Me.BtnResizePlt.Font = New System.Drawing.Font("Microsoft Sans Serif", 10.0!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(238, Byte))
+        Me.BtnResizePlt.Location = New System.Drawing.Point(156, 52)
+        Me.BtnResizePlt.Name = "BtnResizePlt"
+        Me.BtnResizePlt.Size = New System.Drawing.Size(32, 32)
+        Me.BtnResizePlt.TabIndex = 19
+        Me.BtnResizePlt.Text = "R"
+        Me.BtnResizePlt.UseVisualStyleBackColor = False
         '
         'BtnMask
         '
@@ -572,6 +596,7 @@ Partial Class BLP_Orrery_MainForm
     Friend WithEvents ComBxSaveAsFormat As ComboBox
     Friend WithEvents OpenFileToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents SaveAsToolStripMenuItem As ToolStripMenuItem
+    Friend WithEvents ResizePltToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents ToolStripSeparator1 As ToolStripSeparator
     Friend WithEvents QuitToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents FileInformationsToolStripMenuItem As ToolStripMenuItem
@@ -603,4 +628,5 @@ Partial Class BLP_Orrery_MainForm
     Friend WithEvents BtnNextImage As Button
     Friend WithEvents BtnZoomOut As Button
     Friend WithEvents BtnZoomIn As Button
+    Friend WithEvents BtnResizePlt As Button
 End Class
