@@ -42,6 +42,7 @@ Partial Class BLP_Orrery_MainForm
         Me.BackgroundClrMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.ResizeByTextureMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.PreviewActualSizeMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.FlipBioWareDdsMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.AboutToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.GrBxFileInfo = New System.Windows.Forms.GroupBox()
         Me.LblActiveMipMaipValue = New System.Windows.Forms.Label()
@@ -148,31 +149,34 @@ Partial Class BLP_Orrery_MainForm
         'OpenFileToolStripMenuItem
         '
         Me.OpenFileToolStripMenuItem.Name = "OpenFileToolStripMenuItem"
-        Me.OpenFileToolStripMenuItem.Size = New System.Drawing.Size(126, 22)
+        Me.OpenFileToolStripMenuItem.ShortcutKeys = CType((System.Windows.Forms.Keys.Control Or System.Windows.Forms.Keys.O), System.Windows.Forms.Keys)
+        Me.OpenFileToolStripMenuItem.Size = New System.Drawing.Size(205, 22)
         Me.OpenFileToolStripMenuItem.Text = "Open File"
         '
         'SaveAsToolStripMenuItem
         '
         Me.SaveAsToolStripMenuItem.Name = "SaveAsToolStripMenuItem"
-        Me.SaveAsToolStripMenuItem.Size = New System.Drawing.Size(154, 22)
+        Me.SaveAsToolStripMenuItem.ShortcutKeys = CType(((System.Windows.Forms.Keys.Control Or System.Windows.Forms.Keys.Shift) _
+            Or System.Windows.Forms.Keys.S), System.Windows.Forms.Keys)
+        Me.SaveAsToolStripMenuItem.Size = New System.Drawing.Size(205, 22)
         Me.SaveAsToolStripMenuItem.Text = "Save As ..."
         '
         'ResizePltToolStripMenuItem
         '
         Me.ResizePltToolStripMenuItem.Enabled = False
         Me.ResizePltToolStripMenuItem.Name = "ResizePltToolStripMenuItem"
-        Me.ResizePltToolStripMenuItem.Size = New System.Drawing.Size(154, 22)
-        Me.ResizePltToolStripMenuItem.Text = "Resize PLT ..."
+        Me.ResizePltToolStripMenuItem.Size = New System.Drawing.Size(205, 22)
+        Me.ResizePltToolStripMenuItem.Text = "Resize Image ..."
         '
         'ToolStripSeparator1
         '
         Me.ToolStripSeparator1.Name = "ToolStripSeparator1"
-        Me.ToolStripSeparator1.Size = New System.Drawing.Size(151, 6)
+        Me.ToolStripSeparator1.Size = New System.Drawing.Size(202, 6)
         '
         'QuitToolStripMenuItem
         '
         Me.QuitToolStripMenuItem.Name = "QuitToolStripMenuItem"
-        Me.QuitToolStripMenuItem.Size = New System.Drawing.Size(154, 22)
+        Me.QuitToolStripMenuItem.Size = New System.Drawing.Size(205, 22)
         Me.QuitToolStripMenuItem.Text = "Quit"
         '
         'ViewToolStripMenuItem
@@ -193,7 +197,7 @@ Partial Class BLP_Orrery_MainForm
         '
         'ToolsToolStripMenuItem
         '
-        Me.ToolsToolStripMenuItem.DropDownItems.AddRange(New System.Windows.Forms.ToolStripItem() {Me.RenderTransparencyMenuItem, Me.ResizeByTextureMenuItem, Me.PreviewActualSizeMenuItem})
+        Me.ToolsToolStripMenuItem.DropDownItems.AddRange(New System.Windows.Forms.ToolStripItem() {Me.RenderTransparencyMenuItem, Me.ResizeByTextureMenuItem, Me.PreviewActualSizeMenuItem, Me.FlipBioWareDdsMenuItem})
         Me.ToolsToolStripMenuItem.Name = "ToolsToolStripMenuItem"
         Me.ToolsToolStripMenuItem.Size = New System.Drawing.Size(61, 20)
         Me.ToolsToolStripMenuItem.Text = "Settings"
@@ -226,6 +230,13 @@ Partial Class BLP_Orrery_MainForm
         Me.PreviewActualSizeMenuItem.Name = "PreviewActualSizeMenuItem"
         Me.PreviewActualSizeMenuItem.Size = New System.Drawing.Size(183, 22)
         Me.PreviewActualSizeMenuItem.Text = "Preview Actual Size"
+        '
+        'FlipBioWareDdsMenuItem
+        '
+        Me.FlipBioWareDdsMenuItem.CheckOnClick = True
+        Me.FlipBioWareDdsMenuItem.Name = "FlipBioWareDdsMenuItem"
+        Me.FlipBioWareDdsMenuItem.Size = New System.Drawing.Size(183, 22)
+        Me.FlipBioWareDdsMenuItem.Text = "Flip BioWare DDS"
         '
         'AboutToolStripMenuItem
         '
@@ -618,6 +629,7 @@ Partial Class BLP_Orrery_MainForm
     Friend WithEvents PnlTextureView As Panel
     Friend WithEvents ResizeByTextureMenuItem As ToolStripMenuItem
     Friend WithEvents PreviewActualSizeMenuItem As ToolStripMenuItem
+    Friend WithEvents FlipBioWareDdsMenuItem As ToolStripMenuItem
     Friend WithEvents BackgroundClrMenuItem As ToolStripMenuItem
     Friend WithEvents ClrPickBackGround As ColorDialog
     Friend WithEvents LblResolutionValue As Label

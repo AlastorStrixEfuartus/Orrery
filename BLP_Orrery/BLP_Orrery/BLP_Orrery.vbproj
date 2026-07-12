@@ -88,6 +88,7 @@
     <Compile Include="ICOView.vb" />
     <Compile Include="PLTView.vb" />
     <Compile Include="TGAView.vb" />
+    <Compile Include="TextureResizeWriters.vb" />
     <Compile Include="BLP_Orrery.vb" />
     <Compile Include="BLP_Orrery.Designer.vb">
       <DependentUpon>BLP_Orrery.vb</DependentUpon>

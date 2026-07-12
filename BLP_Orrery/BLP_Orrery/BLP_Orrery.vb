@@ -7,7 +7,7 @@ Public Class BLP_Orrery_MainForm
     Implements IMessageFilter
 
     Private Const ApplicationTitle As String = "BLP Orrery"
-    Private Const CurrentVersion As String = "2.4"
+    Private Const CurrentVersion As String = "2.8"
     Private Const AuthorName As String = "Alastor Strix'Efuartus"
     Private Const DevelopmentStartYear As String = "2022"
     Private Const RegistryPath As String = "HKEY_CURRENT_USER\WOWBLP_Orrery"
@@ -17,7 +17,7 @@ Public Class BLP_Orrery_MainForm
     Private Const PreviewZoomStep As Single = 1.25F
     Private Const NavigationCoalesceIntervalMs As Integer = 55
     Private Const MinimumRestoredWindowVisiblePixels As Integer = 64
-    Private Const MaxPltResizeDimension As Integer = 16384
+    Private Const MaxTextureResizeDimension As Integer = 16384
     Private Const WM_MOUSEWHEEL As Integer = &H20A
 
     Private CurrentFilePath As String = String.Empty
@@ -31,6 +31,7 @@ Public Class BLP_Orrery_MainForm
     Private TransparencyBackgroundColor As Color = Color.Black
     Private PreviewZoomFactor As Single = 1.0F
     Private PreviewZoomIsManual As Boolean = False
+    Private ResizeOverwriteOriginal As Boolean = False
     Private SiblingImageCacheDirectory As String = String.Empty
     Private SiblingImageCacheFiles As String() = New String() {}
     Private SiblingImageCacheLastWriteUtc As DateTime = DateTime.MinValue
@@ -41,6 +42,16 @@ Public Class BLP_Orrery_MainForm
     Private ReadOnly SupportedImageExtensions As String() = {".BLP", ".DDS", ".PLT", ".TGA", ".ICO", ".PNG", ".JPG", ".JPEG"}
 
     Protected Overrides Function ProcessCmdKey(ByRef msg As Message, keyData As Keys) As Boolean
+        If keyData = (Keys.Control Or Keys.O) Then
+            OpenFileToolStripMenuItem.PerformClick()
+            Return True
+        End If
+
+        If keyData = (Keys.Control Or Keys.Shift Or Keys.S) Then
+            SaveAsToolStripMenuItem.PerformClick()
+            Return True
+        End If
+
         If keyData = Keys.Left Then
             QueueSiblingImageNavigation(-1)
             Return True
@@ -101,7 +112,7 @@ Public Class BLP_Orrery_MainForm
 
     Private Sub ConfigureToolbarTooltips()
         If ToolbarToolTip Is Nothing Then ToolbarToolTip = New ToolTip()
-        If BtnResizePlt IsNot Nothing Then ToolbarToolTip.SetToolTip(BtnResizePlt, "Resize PLT resolution")
+        If BtnResizePlt IsNot Nothing Then ToolbarToolTip.SetToolTip(BtnResizePlt, "Resize image resolution")
         If BtnZoomOut IsNot Nothing Then ToolbarToolTip.SetToolTip(BtnZoomOut, "Zoom out")
         If BtnZoomIn IsNot Nothing Then ToolbarToolTip.SetToolTip(BtnZoomIn, "Zoom in")
         If BtnPreviousImage IsNot Nothing Then ToolbarToolTip.SetToolTip(BtnPreviousImage, "Previous image")
@@ -118,6 +129,7 @@ Public Class BLP_Orrery_MainForm
         FileInformationsToolStripMenuItem.CheckOnClick = True
         ResizeByTextureMenuItem.CheckOnClick = True
         PreviewActualSizeMenuItem.CheckOnClick = True
+        FlipBioWareDdsMenuItem.CheckOnClick = True
 
         Dim savedIndex As Object = My.Computer.Registry.GetValue(RegistryPath, "SaveAsFormatIndex", Nothing)
         Dim selectedIndex As Integer = 0
@@ -168,6 +180,22 @@ Public Class BLP_Orrery_MainForm
         End If
 
         PreviewActualSizeMenuItem.Checked = previewActualSize
+
+        Dim savedFlipBioWareDds As Object = My.Computer.Registry.GetValue(RegistryPath, "FlipBioWareDdsPreview", Nothing)
+        Dim flipBioWareDds As Boolean = True
+        If savedFlipBioWareDds IsNot Nothing Then
+            Boolean.TryParse(savedFlipBioWareDds.ToString(), flipBioWareDds)
+        End If
+
+        FlipBioWareDdsMenuItem.Checked = flipBioWareDds
+
+        Dim savedResizeOverwriteOriginal As Object = My.Computer.Registry.GetValue(RegistryPath, "ResizeOverwriteOriginal", Nothing)
+        If savedResizeOverwriteOriginal Is Nothing Then savedResizeOverwriteOriginal = My.Computer.Registry.GetValue(RegistryPath, "PltResizeOverwriteOriginal", Nothing)
+        ResizeOverwriteOriginal = False
+        If savedResizeOverwriteOriginal IsNot Nothing Then
+            Boolean.TryParse(savedResizeOverwriteOriginal.ToString(), ResizeOverwriteOriginal)
+        End If
+
         UpdateTextureViewSizing()
     End Sub
 
@@ -178,6 +206,8 @@ Public Class BLP_Orrery_MainForm
         My.Computer.Registry.SetValue(RegistryPath, "FileInformationVisible", FileInformationsToolStripMenuItem.Checked.ToString())
         My.Computer.Registry.SetValue(RegistryPath, "ResizeByTexture", ResizeByTextureMenuItem.Checked.ToString())
         My.Computer.Registry.SetValue(RegistryPath, "PreviewActualSize", PreviewActualSizeMenuItem.Checked.ToString())
+        My.Computer.Registry.SetValue(RegistryPath, "FlipBioWareDdsPreview", FlipBioWareDdsMenuItem.Checked.ToString())
+        My.Computer.Registry.SetValue(RegistryPath, "ResizeOverwriteOriginal", ResizeOverwriteOriginal.ToString())
     End Sub
 
     Private Sub OpenStartupImageFromCommandLine(args As String())
@@ -273,73 +303,230 @@ Public Class BLP_Orrery_MainForm
         End Using
     End Sub
 
-    Private Sub ResizePltResolution(sender As Object, e As EventArgs) Handles BtnResizePlt.Click, ResizePltToolStripMenuItem.Click
-        If String.IsNullOrWhiteSpace(CurrentFilePath) OrElse Not IsPltFile(CurrentFilePath) OrElse Not File.Exists(CurrentFilePath) Then
-            MessageBox.Show("Open a PLT file before changing resolution.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+    Private Sub ResizeImageResolution(sender As Object, e As EventArgs) Handles BtnResizePlt.Click, ResizePltToolStripMenuItem.Click
+        If String.IsNullOrWhiteSpace(CurrentFilePath) OrElse Not File.Exists(CurrentFilePath) OrElse Not IsSupportedImageFile(CurrentFilePath) Then
+            MessageBox.Show("Open a supported image before changing resolution.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
             Return
         End If
 
         Try
-            Dim PLT As PltFile = Nothing
-            Using fileStream As New FileStream(CurrentFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
-                PLT = New PltFile(fileStream)
-            End Using
+            Dim newWidth As Integer
+            Dim newHeight As Integer
+            Dim overwriteOriginal As Boolean = ResizeOverwriteOriginal
 
-            Dim newWidth As Integer = PLT.GetPltWidth()
-            Dim newHeight As Integer = PLT.GetPltHeight()
+            If IsPltFile(CurrentFilePath) Then
+                Dim PLT As PltFile = LoadPltForResize(CurrentFilePath)
+                newWidth = PLT.GetPltWidth()
+                newHeight = PLT.GetPltHeight()
 
-            If ShowPltResizeDialog(PLT.GetPltWidth(), PLT.GetPltHeight(), newWidth, newHeight) <> DialogResult.OK Then Return
+                If ShowResizeDialog(Path.GetExtension(CurrentFilePath), PLT.GetPltWidth(), PLT.GetPltHeight(), newWidth, newHeight, overwriteOriginal) <> DialogResult.OK Then Return
+                ResizeOverwriteOriginal = overwriteOriginal
+                SaveApplicationSettings()
 
-            If newWidth = PLT.GetPltWidth() AndAlso newHeight = PLT.GetPltHeight() Then
-                MessageBox.Show("The requested PLT resolution is the same as the current file.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
-                Return
-            End If
-
-            Using saveDialog As New SaveFileDialog()
-                saveDialog.Title = "Save Resized PLT As"
-                saveDialog.Filter = "Neverwinter Nights PLT (*.plt)|*.plt"
-                saveDialog.AddExtension = True
-                saveDialog.DefaultExt = "plt"
-                saveDialog.OverwritePrompt = True
-                saveDialog.FileName = Path.GetFileNameWithoutExtension(CurrentFilePath) & "_" & newWidth.ToString() & "x" & newHeight.ToString() & ".plt"
-                saveDialog.InitialDirectory = Path.GetDirectoryName(CurrentFilePath)
-
-                If saveDialog.ShowDialog(Me) <> DialogResult.OK Then Return
-
-                If Path.GetFullPath(saveDialog.FileName).Equals(CurrentFilePath, StringComparison.OrdinalIgnoreCase) Then
-                    MessageBox.Show("Choose a different output file so the original PLT is not overwritten.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+                If newWidth = PLT.GetPltWidth() AndAlso newHeight = PLT.GetPltHeight() Then
+                    MessageBox.Show("The requested resolution is the same as the current file.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
                     Return
                 End If
 
-                PLT.SaveResized(saveDialog.FileName, newWidth, newHeight)
-                LoadImage(saveDialog.FileName)
+                If overwriteOriginal Then
+                    SaveResizedImageOverOriginal(CurrentFilePath, Sub(tempPath) PLT.SaveResized(tempPath, newWidth, newHeight))
+                    LoadImage(CurrentFilePath)
+                    Return
+                End If
+
+                Dim outputPath As String = PromptForResizedImageOutputPath(CurrentFilePath, newWidth, newHeight)
+                If String.IsNullOrWhiteSpace(outputPath) Then Return
+                PLT.SaveResized(outputPath, newWidth, newHeight)
+                LoadImage(outputPath)
+                Return
+            End If
+
+            Dim outputFormat As TextureResizeOutputFormat = GetResizeOutputFormat(CurrentFilePath)
+            Using sourceBitmap As Bitmap = LoadBitmapForResize(CurrentFilePath)
+                newWidth = sourceBitmap.Width
+                newHeight = sourceBitmap.Height
+
+                If ShowResizeDialog(Path.GetExtension(CurrentFilePath), sourceBitmap.Width, sourceBitmap.Height, newWidth, newHeight, overwriteOriginal) <> DialogResult.OK Then Return
+                ResizeOverwriteOriginal = overwriteOriginal
+                SaveApplicationSettings()
+
+                If newWidth = sourceBitmap.Width AndAlso newHeight = sourceBitmap.Height Then
+                    MessageBox.Show("The requested resolution is the same as the current file.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    Return
+                End If
+
+                If overwriteOriginal Then
+                    SaveResizedImageOverOriginal(CurrentFilePath, Sub(tempPath) SaveBitmapResizeToPath(sourceBitmap, tempPath, outputFormat, newWidth, newHeight))
+                    LoadImage(CurrentFilePath)
+                    Return
+                End If
+
+                Dim outputPath As String = PromptForResizedImageOutputPath(CurrentFilePath, newWidth, newHeight)
+                If String.IsNullOrWhiteSpace(outputPath) Then Return
+                SaveBitmapResizeToPath(sourceBitmap, outputPath, outputFormat, newWidth, newHeight)
+                LoadImage(outputPath)
             End Using
         Catch ex As Exception
-            MessageBox.Show("Could not resize PLT file:" & Environment.NewLine & ex.Message, ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Error)
+            MessageBox.Show("Could not resize image:" & Environment.NewLine & ex.Message, ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 
-    Private Function ShowPltResizeDialog(CurrentWidth As Integer, CurrentHeight As Integer, ByRef NewWidth As Integer, ByRef NewHeight As Integer) As DialogResult
+    Private Function LoadPltForResize(FilePath As String) As PltFile
+        Using fileStream As New FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
+            Return New PltFile(fileStream)
+        End Using
+    End Function
+
+    Private Function LoadBitmapForResize(FilePath As String) As Bitmap
+        If IsBlpFile(FilePath) Then
+            Using fileStream As New FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
+                Using BLP = New BlpFile(fileStream)
+                    If BLP.GetIsValidVersion = False Then Throw New InvalidDataException("Unsupported BLP file.")
+                    Dim mipmapIndex As Integer = CurrentMipMapIndex
+                    If mipmapIndex < 0 OrElse mipmapIndex >= BLP.MipMapCount OrElse Not BLP.IsMipmapReadable(mipmapIndex) Then mipmapIndex = BLP.GetFirstReadableMipmapIndex()
+                    If mipmapIndex < 0 Then Throw New InvalidDataException("This BLP file does not contain readable image data.")
+                    Return BLP.GetBitmap(mipmapIndex)
+                End Using
+            End Using
+        End If
+
+        If IsDdsFile(FilePath) Then
+            Using fileStream As New FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
+                Dim DDS As New DdsFile(fileStream)
+                Return DDS.GetBitmap(CurrentMipMapIndex)
+            End Using
+        End If
+
+        If IsTgaFile(FilePath) Then
+            Using fileStream As New FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
+                Dim TGA As New TgaFile(fileStream)
+                Return TGA.GetBitmap()
+            End Using
+        End If
+
+        If IsIcoFile(FilePath) Then
+            Using fileStream As New FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
+                Dim ICO As New IcoFile(fileStream)
+                Return ICO.GetBitmap(CurrentMipMapIndex)
+            End Using
+        End If
+
+        Using image As Image = Image.FromFile(FilePath)
+            Return CloneAs32BppArgb(image)
+        End Using
+    End Function
+
+    Private Function PromptForResizedImageOutputPath(SourcePath As String, NewWidth As Integer, NewHeight As Integer) As String
+        Using saveDialog As New SaveFileDialog()
+            Dim extension As String = Path.GetExtension(SourcePath)
+            saveDialog.Title = "Save Resized Image As"
+            saveDialog.Filter = GetResizeSaveDialogFilter(extension)
+            saveDialog.AddExtension = True
+            saveDialog.DefaultExt = extension.TrimStart("."c)
+            saveDialog.OverwritePrompt = True
+            saveDialog.FileName = Path.GetFileNameWithoutExtension(SourcePath) & "_" & NewWidth.ToString() & "x" & NewHeight.ToString() & extension.ToLowerInvariant()
+            saveDialog.InitialDirectory = Path.GetDirectoryName(SourcePath)
+
+            If saveDialog.ShowDialog(Me) <> DialogResult.OK Then Return String.Empty
+
+            If Path.GetFullPath(saveDialog.FileName).Equals(Path.GetFullPath(SourcePath), StringComparison.OrdinalIgnoreCase) Then
+                MessageBox.Show("Choose a different output file, or enable overwrite original in the resize dialog.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Return String.Empty
+            End If
+
+            Return saveDialog.FileName
+        End Using
+    End Function
+
+    Private Sub SaveBitmapResizeToPath(SourceBitmap As Bitmap, OutputPath As String, OutputFormat As TextureResizeOutputFormat, NewWidth As Integer, NewHeight As Integer)
+        TextureResizeWriters.SaveResizedBitmap(SourceBitmap, OutputPath, OutputFormat, NewWidth, NewHeight, TransparencyBackgroundColor)
+    End Sub
+
+    Private Function GetResizeOutputFormat(FilePathOrExtension As String) As TextureResizeOutputFormat
+        Dim extension As String = FilePathOrExtension
+        If Not extension.StartsWith(".", StringComparison.Ordinal) Then extension = Path.GetExtension(FilePathOrExtension)
+
+        Select Case extension.ToUpperInvariant()
+            Case ".BLP"
+                Return TextureResizeOutputFormat.Blp
+            Case ".DDS"
+                Return TextureResizeOutputFormat.Dds
+            Case ".TGA"
+                Return TextureResizeOutputFormat.Tga
+            Case ".ICO"
+                Return TextureResizeOutputFormat.Ico
+            Case ".PNG"
+                Return TextureResizeOutputFormat.Png
+            Case ".JPG", ".JPEG"
+                Return TextureResizeOutputFormat.Jpeg
+        End Select
+
+        Throw New InvalidDataException("Unsupported resize output format: " & extension)
+    End Function
+
+    Private Function GetResizeSaveDialogFilter(FileExtension As String) As String
+        Select Case FileExtension.ToUpperInvariant()
+            Case ".BLP"
+                Return "Blizzard Picture (*.blp)|*.blp"
+            Case ".DDS"
+                Return "DirectDraw Surface (*.dds)|*.dds"
+            Case ".PLT"
+                Return "Neverwinter Nights PLT (*.plt)|*.plt"
+            Case ".TGA"
+                Return "Truevision TGA (*.tga)|*.tga"
+            Case ".ICO"
+                Return "Windows Icon (*.ico)|*.ico"
+            Case ".PNG"
+                Return "PNG Image (*.png)|*.png"
+            Case ".JPG", ".JPEG"
+                Return "JPEG Image (*.jpg;*.jpeg)|*.jpg;*.jpeg"
+        End Select
+
+        Return "Image Files (*" & FileExtension.ToLowerInvariant() & ")|*" & FileExtension.ToLowerInvariant()
+    End Function
+
+    Private Sub SaveResizedImageOverOriginal(OriginalPath As String, SaveTemporaryFile As Action(Of String))
+        If SaveTemporaryFile Is Nothing Then Throw New ArgumentNullException("SaveTemporaryFile")
+
+        Dim directoryPath As String = Path.GetDirectoryName(OriginalPath)
+        Dim tempPath As String = Path.Combine(directoryPath, Path.GetFileNameWithoutExtension(OriginalPath) & "." & Guid.NewGuid().ToString("N") & ".resize.tmp")
+
+        Try
+            SaveTemporaryFile(tempPath)
+            File.Replace(tempPath, OriginalPath, Nothing)
+        Finally
+            If File.Exists(tempPath) Then
+                Try
+                    File.Delete(tempPath)
+                Catch
+                End Try
+            End If
+        End Try
+    End Sub
+
+    Private Function ShowResizeDialog(FileExtension As String, CurrentWidth As Integer, CurrentHeight As Integer, ByRef NewWidth As Integer, ByRef NewHeight As Integer, ByRef OverwriteOriginal As Boolean) As DialogResult
         Dim selectedWidth As Integer = CurrentWidth
         Dim selectedHeight As Integer = CurrentHeight
+        Dim selectedOverwriteOriginal As Boolean = OverwriteOriginal
 
         Using dialog As New Form()
-            dialog.Text = "Resize PLT Resolution"
+            dialog.Text = "Resize " & FileExtension.TrimStart("."c).ToUpperInvariant() & " Resolution"
             dialog.StartPosition = FormStartPosition.CenterParent
             dialog.FormBorderStyle = FormBorderStyle.FixedDialog
             dialog.MinimizeBox = False
             dialog.MaximizeBox = False
             dialog.ShowInTaskbar = False
-            dialog.ClientSize = New Size(300, 162)
+            dialog.ClientSize = New Size(320, 188)
             If Icon IsNot Nothing Then dialog.Icon = Icon
 
             Dim layout As New TableLayoutPanel()
             layout.Dock = DockStyle.Fill
             layout.Padding = New Padding(12)
             layout.ColumnCount = 2
-            layout.RowCount = 4
+            layout.RowCount = 5
             layout.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 92.0F))
             layout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+            layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
             layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
             layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
             layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
@@ -360,8 +547,8 @@ Public Class BLP_Orrery_MainForm
             Dim widthInput As New NumericUpDown()
             widthInput.Dock = DockStyle.Fill
             widthInput.Minimum = 1D
-            widthInput.Maximum = MaxPltResizeDimension
-            widthInput.Value = Math.Min(MaxPltResizeDimension, Math.Max(1, CurrentWidth))
+            widthInput.Maximum = MaxTextureResizeDimension
+            widthInput.Value = Math.Min(MaxTextureResizeDimension, Math.Max(1, CurrentWidth))
 
             Dim heightLabel As New Label()
             heightLabel.AutoSize = True
@@ -372,8 +559,15 @@ Public Class BLP_Orrery_MainForm
             Dim heightInput As New NumericUpDown()
             heightInput.Dock = DockStyle.Fill
             heightInput.Minimum = 1D
-            heightInput.Maximum = MaxPltResizeDimension
-            heightInput.Value = Math.Min(MaxPltResizeDimension, Math.Max(1, CurrentHeight))
+            heightInput.Maximum = MaxTextureResizeDimension
+            heightInput.Value = Math.Min(MaxTextureResizeDimension, Math.Max(1, CurrentHeight))
+
+            Dim overwriteCheckBox As New CheckBox()
+            overwriteCheckBox.AutoSize = True
+            overwriteCheckBox.Checked = selectedOverwriteOriginal
+            overwriteCheckBox.Margin = New Padding(0, 8, 0, 0)
+            overwriteCheckBox.Text = "Overwrite original file"
+            layout.SetColumnSpan(overwriteCheckBox, 2)
 
             Dim buttonPanel As New FlowLayoutPanel()
             buttonPanel.Dock = DockStyle.Fill
@@ -397,13 +591,14 @@ Public Class BLP_Orrery_MainForm
                     Dim requestedWidth As Integer = CInt(widthInput.Value)
                     Dim requestedHeight As Integer = CInt(heightInput.Value)
 
-                    If Not ValidatePltResizeDimensions(requestedWidth, requestedHeight) Then
+                    If Not ValidateResizeDimensionsForDialog(FileExtension, requestedWidth, requestedHeight) Then
                         dialog.DialogResult = DialogResult.None
                         Return
                     End If
 
                     selectedWidth = requestedWidth
                     selectedHeight = requestedHeight
+                    selectedOverwriteOriginal = overwriteCheckBox.Checked
                 End Sub
 
             buttonPanel.Controls.Add(okButton)
@@ -414,7 +609,8 @@ Public Class BLP_Orrery_MainForm
             layout.Controls.Add(widthInput, 1, 1)
             layout.Controls.Add(heightLabel, 0, 2)
             layout.Controls.Add(heightInput, 1, 2)
-            layout.Controls.Add(buttonPanel, 0, 3)
+            layout.Controls.Add(overwriteCheckBox, 0, 3)
+            layout.Controls.Add(buttonPanel, 0, 4)
 
             dialog.Controls.Add(layout)
             dialog.AcceptButton = okButton
@@ -424,30 +620,31 @@ Public Class BLP_Orrery_MainForm
             If result = DialogResult.OK Then
                 NewWidth = selectedWidth
                 NewHeight = selectedHeight
+                OverwriteOriginal = selectedOverwriteOriginal
             End If
 
             Return result
         End Using
     End Function
 
-    Private Function ValidatePltResizeDimensions(RequestedWidth As Integer, RequestedHeight As Integer) As Boolean
-        If RequestedWidth <= 0 OrElse RequestedHeight <= 0 Then
-            MessageBox.Show("PLT dimensions must be greater than zero.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
-            Return False
-        End If
+    Private Function ValidateResizeDimensionsForDialog(FileExtension As String, RequestedWidth As Integer, RequestedHeight As Integer) As Boolean
+        Try
+            If RequestedWidth > MaxTextureResizeDimension OrElse RequestedHeight > MaxTextureResizeDimension Then
+                Throw New InvalidDataException("Texture dimensions cannot be larger than " & MaxTextureResizeDimension.ToString() & " pixels.")
+            End If
 
-        If RequestedWidth > MaxPltResizeDimension OrElse RequestedHeight > MaxPltResizeDimension Then
-            MessageBox.Show("PLT dimensions cannot be larger than " & MaxPltResizeDimension.ToString() & " pixels.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
-            Return False
-        End If
+            If FileExtension.Equals(".plt", StringComparison.OrdinalIgnoreCase) Then
+                Dim pixelBytes As Long = CLng(RequestedWidth) * CLng(RequestedHeight) * 2L
+                If RequestedWidth <= 0 OrElse RequestedHeight <= 0 OrElse pixelBytes <= 0L OrElse pixelBytes > Integer.MaxValue Then Throw New InvalidDataException("The requested PLT resolution is too large to save safely.")
+            Else
+                TextureResizeWriters.ValidateResizeDimensions(GetResizeOutputFormat(FileExtension), RequestedWidth, RequestedHeight)
+            End If
 
-        Dim pixelBytes As Long = CLng(RequestedWidth) * CLng(RequestedHeight) * 2L
-        If pixelBytes > Integer.MaxValue Then
-            MessageBox.Show("The requested PLT resolution is too large to save safely.", ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return True
+        Catch ex As Exception
+            MessageBox.Show(ex.Message, ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
             Return False
-        End If
-
-        Return True
+        End Try
     End Function
 
     Private Sub TxtbxWoWPath_TextChanged(sender As Object, e As EventArgs) Handles TxBxTextureDirectory.TextChanged
@@ -559,12 +756,21 @@ Public Class BLP_Orrery_MainForm
 
             PopulateDdsInfo(DDS)
             CurrentMipMapIndex = 0
-            SetSourceBitmap(DDS.GetBitmap(CurrentMipMapIndex))
+            SetSourceBitmap(GetDdsBitmapForDisplay(DDS, CurrentMipMapIndex))
             SetActiveMipmapInfo(CurrentMipMapIndex, DDS.GetMipmapWidth(CurrentMipMapIndex), DDS.GetMipmapHeight(CurrentMipMapIndex))
 
             If LsBxMipMapList.Items.Count > 1 Then LsBxMipMapList.SelectedIndex = 1
         End Using
     End Sub
+
+    Private Function GetDdsBitmapForDisplay(DDS As DdsFile, MipmapIndex As Integer) As Bitmap
+        Dim bitmap As Bitmap = DDS.GetBitmap(MipmapIndex)
+        If DDS.GetIsBioWareCompact() Then
+            bitmap.RotateFlip(RotateFlipType.RotateNoneFlipY)
+        End If
+
+        Return bitmap
+    End Function
 
     Private Sub LoadPltImage(FilePath As String)
         Using fileStream As New FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
@@ -796,7 +1002,7 @@ Public Class BLP_Orrery_MainForm
                 If MipmapIndex >= DDS.MipMapCount Then MipmapIndex = DDS.MipMapCount - 1
 
                 CurrentMipMapIndex = MipmapIndex
-                SetSourceBitmap(DDS.GetBitmap(CurrentMipMapIndex))
+                SetSourceBitmap(GetDdsBitmapForDisplay(DDS, CurrentMipMapIndex))
                 SetActiveMipmapInfo(CurrentMipMapIndex, DDS.GetMipmapWidth(CurrentMipMapIndex), DDS.GetMipmapHeight(CurrentMipMapIndex))
             End Using
         Catch ex As Exception
@@ -1089,6 +1295,10 @@ Public Class BLP_Orrery_MainForm
         End If
 
         If Not IsLoadingImage Then ApplyPreviewZoomLayout()
+    End Sub
+
+    Private Sub FlipBioWareDdsMenuItem_CheckedChanged(sender As Object, e As EventArgs) Handles FlipBioWareDdsMenuItem.CheckedChanged
+        If Not IsLoadingImage AndAlso IsDdsFile(CurrentFilePath) Then LoadCurrentDdsMipmap(CurrentMipMapIndex)
     End Sub
 
     Private Sub BackgroundClrMenuItem_Click(sender As Object, e As EventArgs) Handles BackgroundClrMenuItem.Click
@@ -1401,11 +1611,11 @@ Public Class BLP_Orrery_MainForm
         If BtnTransparency IsNot Nothing Then BtnTransparency.BackColor = If(RenderTransparencyMenuItem.Checked, Color.LightSteelBlue, Color.Silver)
 
         Dim hasImage As Boolean = CurrentSourceBitmap IsNot Nothing
-        Dim canResizePlt As Boolean = hasImage AndAlso Not String.IsNullOrWhiteSpace(CurrentFilePath) AndAlso IsPltFile(CurrentFilePath)
+        Dim canResizeImage As Boolean = hasImage AndAlso Not String.IsNullOrWhiteSpace(CurrentFilePath) AndAlso IsSupportedImageFile(CurrentFilePath)
         If BtnZoomOut IsNot Nothing Then BtnZoomOut.Enabled = hasImage
         If BtnZoomIn IsNot Nothing Then BtnZoomIn.Enabled = hasImage
-        If BtnResizePlt IsNot Nothing Then BtnResizePlt.Enabled = canResizePlt
-        If ResizePltToolStripMenuItem IsNot Nothing Then ResizePltToolStripMenuItem.Enabled = canResizePlt
+        If BtnResizePlt IsNot Nothing Then BtnResizePlt.Enabled = canResizeImage
+        If ResizePltToolStripMenuItem IsNot Nothing Then ResizePltToolStripMenuItem.Enabled = canResizeImage
     End Sub
 
     Private Sub ZoomPreview(ZoomIn As Boolean, AnchorPoint As Point)
@@ -1707,7 +1917,15 @@ Public Class BLP_Orrery_MainForm
             "2.3 - Window restore failsafe" & Environment.NewLine &
             "Added a startup guard that keeps valid remembered window positions but recenters Orrery if the saved position is outside the visible monitor layout, and prevented About changelog text from opening fully selected.",
             "2.4 - PLT resolution export" & Environment.NewLine &
-            "Added a PLT-only resolution control that saves a new resized PLT file by resampling luminance/layer byte pairs without flattening the layered texture data."
+            "Added a PLT-only resolution control that saves a new resized PLT file by resampling luminance/layer byte pairs without flattening the layered texture data.",
+            "2.5 - PLT resize overwrite option" & Environment.NewLine &
+            "Added a remembered overwrite-original checkbox to the PLT resize dialog for direct in-place resolution changes when desired.",
+            "2.6 - Multi-format resolution export" & Environment.NewLine &
+            "Extended the resize dialog to BLP, DDS, TGA, ICO, PNG, JPG, and JPEG with format-specific writers while keeping PLT layer-pair resizing intact.",
+            "2.7 - BioWare DDS orientation" & Environment.NewLine &
+            "Added a remembered Settings switch for vertically flipping BioWare/NWN compact DDS previews without changing standard DDS files.",
+            "2.8 - Core BioWare DDS orientation" & Environment.NewLine &
+            "Moved BioWare/NWN compact DDS vertical orientation correction into the DDS decoder core so Orrery previews, exports, and Explorer thumbnails share the corrected default."
         })
     End Function
 

@@ -71,7 +71,7 @@ Public Module DDSView
             End Get
         End Property
 
-        Public Function GetBitmap(MipmapLevel As Integer) As Bitmap
+        Public Function GetBitmap(MipmapLevel As Integer, Optional NormalizeBioWareOrientation As Boolean = True) As Bitmap
             MipmapLevel = ClampMipmapLevel(MipmapLevel)
 
             Dim mip As DdsMipLevel = MipLevels(MipmapLevel)
@@ -87,6 +87,10 @@ Public Module DDSView
             Finally
                 bmp.UnlockBits(bmpData)
             End Try
+
+            If NormalizeBioWareOrientation AndAlso Container = DdsContainer.BioWareCompact Then
+                bmp.RotateFlip(RotateFlipType.RotateNoneFlipY)
+            End If
 
             Return bmp
         End Function
@@ -128,6 +132,10 @@ Public Module DDSView
             If Container = DdsContainer.BioWareCompact Then Return "BioWare DDS"
             If IsDx10 Then Return "DDS DX10"
             Return "DDS"
+        End Function
+
+        Public Function GetIsBioWareCompact() As Boolean
+            Return Container = DdsContainer.BioWareCompact
         End Function
 
         Public Function GetFormatName() As String

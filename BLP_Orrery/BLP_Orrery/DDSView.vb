@@ -130,6 +130,10 @@ Module DDSView
             Return "DDS"
         End Function
 
+        Public Function GetIsBioWareCompact() As Boolean
+            Return Container = DdsContainer.BioWareCompact
+        End Function
+
         Public Function GetFormatName() As String
             Select Case PixelStorage
                 Case DdsPixelStorage.Dxt1
