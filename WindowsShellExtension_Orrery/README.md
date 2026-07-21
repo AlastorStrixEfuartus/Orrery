@@ -1,12 +1,13 @@
-# WindowsShellExtension Orrery
+# WindowsShellExtension Orrery 1.4
 
-Windows Explorer thumbnail provider forked from the BLP Orrery decoding core.
+Windows Explorer thumbnail provider compiled from BLP Orrery's shared decoding core.
 
 Supported thumbnail formats:
 
 - `.blp` BLP2 textures
 - `.dds` standard DDS textures
 - `.dds` BioWare/NWN compact DDS textures
+- `.plt` Neverwinter Nights layered textures
 - `.ico` Windows icon files
 
 ## Build
@@ -38,3 +39,9 @@ Run PowerShell as Administrator:
 ## Notes
 
 The provider implements `IInitializeWithStream` and `IThumbnailProvider`, so Explorer gives it a file stream and receives an alpha-preserving `HBITMAP`. It avoids UI and returns failure silently when a file is unsupported, which is the expected behavior for shell extensions.
+
+## Integrated Deployment
+
+BLP Orrery 2.9 builds this project automatically, embeds the resulting x64 DLL, extracts it to an immutable per-user location, and controls registration from its **Explorer Thumbnails** menu. This is the preferred deployment path and does not require PowerShell, RegAsm, or administrator elevation.
+
+The scripts below remain for legacy standalone development and package testing.

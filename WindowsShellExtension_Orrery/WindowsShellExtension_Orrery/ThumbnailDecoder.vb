@@ -5,6 +5,8 @@ Imports System.IO
 
 Friend NotInheritable Class ThumbnailDecoder
 
+    Private Const MaxDecodedPixelCount As Long = 16777216L
+
     Private Sub New()
     End Sub
 
@@ -37,6 +39,7 @@ Friend NotInheritable Class ThumbnailDecoder
                 If Not blp.GetIsValidVersion() Then Throw New InvalidDataException("Unsupported BLP file.")
                 Dim mip As Integer = ChooseBestReadableBlpMipmap(blp, MaxPixelSize)
                 If mip < 0 Then Throw New InvalidDataException("BLP file does not contain a readable mipmap.")
+                EnsureSafeDecodeDimensions(blp.GetMipmapWidth(mip), blp.GetMipmapHeight(mip), "BLP")
                 Return blp.GetBitmap(mip)
             End Using
         End Using
@@ -45,6 +48,7 @@ Friend NotInheritable Class ThumbnailDecoder
     Private Shared Function DecodePlt(FileData As Byte()) As Bitmap
         Using memory As New MemoryStream(FileData, False)
             Dim plt As New PltFile(memory)
+            EnsureSafeDecodeDimensions(plt.GetPltWidth(), plt.GetPltHeight(), "PLT")
             Return plt.GetBitmap()
         End Using
     End Function
@@ -56,7 +60,10 @@ Friend NotInheritable Class ThumbnailDecoder
                                                    Function(i) dds.GetMipmapWidth(i),
                                                    Function(i) dds.GetMipmapHeight(i),
                                                    MaxPixelSize)
-            Return dds.GetBitmap(mip)
+            EnsureSafeDecodeDimensions(dds.GetMipmapWidth(mip), dds.GetMipmapHeight(mip), "DDS")
+            Dim bitmap As Bitmap = dds.GetBitmap(mip)
+            If dds.GetIsBioWareCompact() Then bitmap.RotateFlip(RotateFlipType.RotateNoneFlipY)
+            Return bitmap
         End Using
     End Function
 
@@ -93,6 +100,15 @@ Friend NotInheritable Class ThumbnailDecoder
 
         Return fallback
     End Function
+
+    Private Shared Sub EnsureSafeDecodeDimensions(Width As Integer, Height As Integer, FormatName As String)
+        If Width <= 0 OrElse Height <= 0 Then Throw New InvalidDataException(FormatName & " thumbnail dimensions are invalid.")
+
+        Dim pixelCount As Long = CLng(Width) * CLng(Height)
+        If pixelCount <= 0L OrElse pixelCount > MaxDecodedPixelCount Then
+            Throw New InvalidDataException(FormatName & " thumbnail source is too large to decode safely inside Explorer.")
+        End If
+    End Sub
 
     Private Shared Function ScaleToFit(Source As Bitmap, MaxPixelSize As Integer) As Bitmap
         If Source.Width <= MaxPixelSize AndAlso Source.Height <= MaxPixelSize Then

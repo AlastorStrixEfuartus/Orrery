@@ -87,6 +87,7 @@
     <Compile Include="DXTDecompression.vb" />
     <Compile Include="ICOView.vb" />
     <Compile Include="PLTView.vb" />
+    <Compile Include="ShellExtensionManager.vb" />
     <Compile Include="TGAView.vb" />
     <Compile Include="TextureResizeWriters.vb" />
     <Compile Include="BLP_Orrery.vb" />
@@ -140,6 +141,18 @@
     </Content>
     <Content Include="icon.ico" />
   </ItemGroup>
+  <PropertyGroup>
+    <ShellExtensionProjectPath>$(MSBuildProjectDirectory)\..\..\WindowsShellExtension_Orrery\WindowsShellExtension_Orrery\WindowsShellExtension_Orrery.vbproj</ShellExtensionProjectPath>
+    <ShellExtensionOutputPath>$(MSBuildProjectDirectory)\..\..\WindowsShellExtension_Orrery\WindowsShellExtension_Orrery\bin\$(Configuration)\WindowsShellExtension_Orrery.dll</ShellExtensionOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="$(ShellExtensionOutputPath)" Condition="'$(DesignTimeBuild)' != 'true'">
+      <LogicalName>BLP_Orrery.Payload.WindowsShellExtension_Orrery.dll</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+  <Target Name="BuildEmbeddedShellExtension" BeforeTargets="PrepareResources">
+    <MSBuild Projects="$(ShellExtensionProjectPath)" Targets="Build" Properties="Configuration=$(Configuration);Platform=AnyCPU;UseSharedCompilation=false" />
+  </Target>
   <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

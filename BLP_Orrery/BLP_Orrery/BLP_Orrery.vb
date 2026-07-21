@@ -7,7 +7,7 @@ Public Class BLP_Orrery_MainForm
     Implements IMessageFilter
 
     Private Const ApplicationTitle As String = "BLP Orrery"
-    Private Const CurrentVersion As String = "2.8"
+    Private Const CurrentVersion As String = "2.9"
     Private Const AuthorName As String = "Alastor Strix'Efuartus"
     Private Const DevelopmentStartYear As String = "2022"
     Private Const RegistryPath As String = "HKEY_CURRENT_USER\WOWBLP_Orrery"
@@ -31,12 +31,17 @@ Public Class BLP_Orrery_MainForm
     Private TransparencyBackgroundColor As Color = Color.Black
     Private PreviewZoomFactor As Single = 1.0F
     Private PreviewZoomIsManual As Boolean = False
+    Private IsPreviewPanning As Boolean = False
+    Private PreviewPanStartMousePosition As Point = Point.Empty
+    Private PreviewPanStartScrollPosition As Point = Point.Empty
     Private ResizeOverwriteOriginal As Boolean = False
     Private SiblingImageCacheDirectory As String = String.Empty
     Private SiblingImageCacheFiles As String() = New String() {}
     Private SiblingImageCacheLastWriteUtc As DateTime = DateTime.MinValue
     Private NavigationTimer As Timer = Nothing
     Private ToolbarToolTip As ToolTip = Nothing
+    Private ShellExtensionStatus As OrreryShellStatus = Nothing
+    Private IsUpdatingShellExtensionMenu As Boolean = False
     Private PendingNavigationFilePath As String = String.Empty
     Private PendingNavigationIndex As Integer = -1
     Private ReadOnly SupportedImageExtensions As String() = {".BLP", ".DDS", ".PLT", ".TGA", ".ICO", ".PNG", ".JPG", ".JPEG"}
@@ -84,6 +89,7 @@ Public Class BLP_Orrery_MainForm
         PositionNavigationButtons()
         UpdateDisplayButtons()
         UpdateNavigationButtons()
+        InitializeShellExtensionMenu()
         OpenStartupImageFromCommandLine(Environment.GetCommandLineArgs())
     End Sub
 
@@ -1216,6 +1222,7 @@ Public Class BLP_Orrery_MainForm
     End Function
 
     Private Sub SetPreviewImage(ImageToDisplay As Image)
+        EndPreviewPanning()
         Dim oldImage As Image = PicBxTextureView.Image
         PicBxTextureView.Image = ImageToDisplay
         ApplyPreviewZoomLayout()
@@ -1248,6 +1255,134 @@ Public Class BLP_Orrery_MainForm
 
     Private Sub AboutToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles AboutToolStripMenuItem.Click
         ShowAboutWindow()
+    End Sub
+
+    Private Sub InitializeShellExtensionMenu()
+        RefreshShellExtensionMenu(False)
+    End Sub
+
+    Private Sub ExplorerThumbnailsToolStripMenuItem_DropDownOpening(sender As Object, e As EventArgs) Handles ExplorerThumbnailsToolStripMenuItem.DropDownOpening
+        RefreshShellExtensionMenu(False)
+    End Sub
+
+    Private Sub RefreshShellExtensionMenu(PreserveSelections As Boolean)
+        Try
+            Dim status As OrreryShellStatus = OrreryShellExtensionManager.GetStatus()
+            ShellExtensionStatus = status
+            IsUpdatingShellExtensionMenu = True
+
+            If Not PreserveSelections Then
+                ShellEnableMenuItem.Checked = status.IsActive
+
+                Dim selectedFormats As HashSet(Of String)
+                If status.IsActive Then
+                    selectedFormats = New HashSet(Of String)(status.ActiveFormats, StringComparer.OrdinalIgnoreCase)
+                Else
+                    selectedFormats = OrreryShellExtensionManager.GetPreferredFormats()
+                End If
+
+                ShellBlpMenuItem.Checked = selectedFormats.Contains(".blp")
+                ShellDdsMenuItem.Checked = selectedFormats.Contains(".dds")
+                ShellPltMenuItem.Checked = selectedFormats.Contains(".plt")
+                ShellIcoMenuItem.Checked = selectedFormats.Contains(".ico")
+            End If
+
+            ShellStatusMenuItem.Text = status.GetMenuSummary()
+            ShellApplyMenuItem.Enabled = status.PayloadAvailable
+            ShellEnableMenuItem.Enabled = status.PayloadAvailable OrElse status.IsActive
+            ShellFormatsMenuItem.Enabled = status.PayloadAvailable OrElse status.IsActive
+            ShellOpenFolderMenuItem.Enabled = Directory.Exists(OrreryShellExtensionManager.GetInstallRoot())
+        Catch ex As Exception
+            ShellExtensionStatus = Nothing
+            ShellStatusMenuItem.Text = "Status: unable to inspect registration"
+            ShellApplyMenuItem.Enabled = False
+            ShellEnableMenuItem.Enabled = False
+            ShellFormatsMenuItem.Enabled = False
+        Finally
+            IsUpdatingShellExtensionMenu = False
+        End Try
+    End Sub
+
+    Private Function GetSelectedShellExtensions() As List(Of String)
+        Dim selected As New List(Of String)()
+        If ShellBlpMenuItem.Checked Then selected.Add(".blp")
+        If ShellDdsMenuItem.Checked Then selected.Add(".dds")
+        If ShellPltMenuItem.Checked Then selected.Add(".plt")
+        If ShellIcoMenuItem.Checked Then selected.Add(".ico")
+        Return selected
+    End Function
+
+    Private Sub ApplyShellExtensionMenuSelection(ShowConfirmation As Boolean)
+        If IsUpdatingShellExtensionMenu Then Return
+
+        Dim previousCursor As Cursor = Cursor
+        Try
+            Cursor = Cursors.WaitCursor
+            ExplorerThumbnailsToolStripMenuItem.Enabled = False
+
+            Dim selected As List(Of String) = GetSelectedShellExtensions()
+            Dim enableProvider As Boolean = ShellEnableMenuItem.Checked AndAlso selected.Count > 0
+            ShellExtensionStatus = OrreryShellExtensionManager.Apply(enableProvider, selected)
+            RefreshShellExtensionMenu(False)
+
+            If ShowConfirmation Then
+                MessageBox.Show(ShellExtensionStatus.GetDetails(), ApplicationTitle, MessageBoxButtons.OK, MessageBoxIcon.Information)
+            End If
+        Catch ex As Exception
+            MessageBox.Show("Could not apply the Explorer thumbnail settings." & Environment.NewLine & Environment.NewLine & ex.Message,
+                            ApplicationTitle,
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error)
+            RefreshShellExtensionMenu(False)
+        Finally
+            ExplorerThumbnailsToolStripMenuItem.Enabled = True
+            Cursor = previousCursor
+        End Try
+    End Sub
+
+    Private Sub ShellEnableMenuItem_Click(sender As Object, e As EventArgs) Handles ShellEnableMenuItem.Click
+        ApplyShellExtensionMenuSelection(False)
+    End Sub
+
+    Private Sub ShellFormatMenuItem_Click(sender As Object, e As EventArgs) Handles ShellBlpMenuItem.Click, ShellDdsMenuItem.Click, ShellPltMenuItem.Click, ShellIcoMenuItem.Click
+        ApplyShellExtensionMenuSelection(False)
+    End Sub
+
+    Private Sub ShellApplyMenuItem_Click(sender As Object, e As EventArgs) Handles ShellApplyMenuItem.Click
+        ApplyShellExtensionMenuSelection(True)
+    End Sub
+
+    Private Sub ShellRefreshMenuItem_Click(sender As Object, e As EventArgs) Handles ShellRefreshMenuItem.Click
+        Try
+            OrreryShellExtensionManager.NotifyShellAssociationsChanged()
+            RefreshShellExtensionMenu(False)
+        Catch ex As Exception
+            MessageBox.Show("Windows Explorer could not be refreshed." & Environment.NewLine & Environment.NewLine & ex.Message,
+                            ApplicationTitle,
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    Private Sub ShellDetailsMenuItem_Click(sender As Object, e As EventArgs) Handles ShellDetailsMenuItem.Click
+        RefreshShellExtensionMenu(False)
+        Dim details As String = If(ShellExtensionStatus Is Nothing,
+                                   "The Explorer thumbnail provider status could not be read.",
+                                   ShellExtensionStatus.GetDetails())
+        MessageBox.Show(details, ApplicationTitle & " Explorer Thumbnails", MessageBoxButtons.OK, MessageBoxIcon.Information)
+    End Sub
+
+    Private Sub ShellOpenFolderMenuItem_Click(sender As Object, e As EventArgs) Handles ShellOpenFolderMenuItem.Click
+        Try
+            Dim installRoot As String = OrreryShellExtensionManager.GetInstallRoot()
+            If Not Directory.Exists(installRoot) Then Directory.CreateDirectory(installRoot)
+            Process.Start("explorer.exe", installRoot)
+        Catch ex As Exception
+            MessageBox.Show("The installed provider folder could not be opened." & Environment.NewLine & Environment.NewLine & ex.Message,
+                            ApplicationTitle,
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error)
+        End Try
     End Sub
 
     Private Sub MainContextAboutItem_Click(sender As Object, e As EventArgs)
@@ -1346,6 +1481,46 @@ Public Class BLP_Orrery_MainForm
 
     Private Sub PnlTextureView_Resize(sender As Object, e As EventArgs) Handles PnlTextureView.Resize
         ApplyPreviewZoomLayout()
+    End Sub
+
+    Private Sub PicBxTextureView_MouseDown(sender As Object, e As MouseEventArgs) Handles PicBxTextureView.MouseDown
+        If e.Button <> MouseButtons.Left OrElse Not CanPanPreview() Then Return
+
+        IsPreviewPanning = True
+        PreviewPanStartMousePosition = PicBxTextureView.PointToScreen(e.Location)
+        PreviewPanStartScrollPosition = New Point(GetHorizontalScrollOffset(), GetVerticalScrollOffset())
+        PicBxTextureView.Capture = True
+        PicBxTextureView.Cursor = Cursors.SizeAll
+    End Sub
+
+    Private Sub PicBxTextureView_MouseMove(sender As Object, e As MouseEventArgs) Handles PicBxTextureView.MouseMove
+        If Not IsPreviewPanning Then
+            UpdatePreviewPanCursor()
+            Return
+        End If
+
+        If (Control.MouseButtons And MouseButtons.Left) <> MouseButtons.Left Then
+            EndPreviewPanning()
+            Return
+        End If
+
+        Dim currentMousePosition As Point = PicBxTextureView.PointToScreen(e.Location)
+        Dim desiredX As Integer = PreviewPanStartScrollPosition.X - (currentMousePosition.X - PreviewPanStartMousePosition.X)
+        Dim desiredY As Integer = PreviewPanStartScrollPosition.Y - (currentMousePosition.Y - PreviewPanStartMousePosition.Y)
+
+        ScrollPreviewTo(desiredX, desiredY)
+    End Sub
+
+    Private Sub PicBxTextureView_MouseUp(sender As Object, e As MouseEventArgs) Handles PicBxTextureView.MouseUp
+        If e.Button = MouseButtons.Left Then EndPreviewPanning()
+    End Sub
+
+    Private Sub PicBxTextureView_MouseLeave(sender As Object, e As EventArgs) Handles PicBxTextureView.MouseLeave
+        If Not IsPreviewPanning Then PicBxTextureView.Cursor = Cursors.Default
+    End Sub
+
+    Private Sub PicBxTextureView_MouseCaptureChanged(sender As Object, e As EventArgs) Handles PicBxTextureView.MouseCaptureChanged
+        If IsPreviewPanning AndAlso Not PicBxTextureView.Capture Then EndPreviewPanning()
     End Sub
 
     Public Function PreFilterMessage(ByRef m As Message) As Boolean Implements IMessageFilter.PreFilterMessage
@@ -1621,14 +1796,14 @@ Public Class BLP_Orrery_MainForm
     Private Sub ZoomPreview(ZoomIn As Boolean, AnchorPoint As Point)
         If PicBxTextureView.Image Is Nothing Then Return
 
-        Dim oldZoomFactor As Single = If(PreviewZoomIsManual, PreviewZoomFactor, GetFitZoomFactor())
-        Dim imageX As Single = 0.0F
-        Dim imageY As Single = 0.0F
+        Dim displayedImageBounds As RectangleF = GetDisplayedPreviewImageBounds()
+        If displayedImageBounds.Width <= 0.0F OrElse displayedImageBounds.Height <= 0.0F Then Return
 
-        If oldZoomFactor > 0.0F Then
-            imageX = CSng((GetHorizontalScrollOffset() + AnchorPoint.X - PicBxTextureView.Left) / oldZoomFactor)
-            imageY = CSng((GetVerticalScrollOffset() + AnchorPoint.Y - PicBxTextureView.Top) / oldZoomFactor)
-        End If
+        Dim oldZoomFactor As Single = displayedImageBounds.Width / PicBxTextureView.Image.Width
+        Dim imageX As Single = (AnchorPoint.X - displayedImageBounds.Left) / displayedImageBounds.Width * PicBxTextureView.Image.Width
+        Dim imageY As Single = (AnchorPoint.Y - displayedImageBounds.Top) / displayedImageBounds.Height * PicBxTextureView.Image.Height
+        imageX = Math.Max(0.0F, Math.Min(CSng(PicBxTextureView.Image.Width), imageX))
+        imageY = Math.Max(0.0F, Math.Min(CSng(PicBxTextureView.Image.Height), imageY))
 
         PreviewZoomIsManual = True
         If ZoomIn Then
@@ -1648,13 +1823,22 @@ Public Class BLP_Orrery_MainForm
         Return ZoomFactor
     End Function
 
-    Private Function GetFitZoomFactor() As Single
-        If PicBxTextureView.Image Is Nothing OrElse PicBxTextureView.Image.Width <= 0 OrElse PicBxTextureView.Image.Height <= 0 Then Return 1.0F
-        If PnlTextureView.ClientSize.Width <= 0 OrElse PnlTextureView.ClientSize.Height <= 0 Then Return 1.0F
+    Private Function GetDisplayedPreviewImageBounds() As RectangleF
+        If PicBxTextureView.Image Is Nothing Then Return RectangleF.Empty
 
-        Dim widthScale As Single = CSng(PnlTextureView.ClientSize.Width / CDbl(PicBxTextureView.Image.Width))
-        Dim heightScale As Single = CSng(PnlTextureView.ClientSize.Height / CDbl(PicBxTextureView.Image.Height))
-        Return ClampZoomFactor(Math.Min(widthScale, heightScale))
+        If PreviewZoomIsManual Then
+            Return New RectangleF(PicBxTextureView.Left, PicBxTextureView.Top, PicBxTextureView.Width, PicBxTextureView.Height)
+        End If
+
+        Dim widthScale As Single = CSng(PicBxTextureView.ClientSize.Width / CDbl(PicBxTextureView.Image.Width))
+        Dim heightScale As Single = CSng(PicBxTextureView.ClientSize.Height / CDbl(PicBxTextureView.Image.Height))
+        Dim fitScale As Single = Math.Min(widthScale, heightScale)
+        Dim renderedWidth As Single = PicBxTextureView.Image.Width * fitScale
+        Dim renderedHeight As Single = PicBxTextureView.Image.Height * fitScale
+        Dim renderedLeft As Single = PicBxTextureView.Left + (PicBxTextureView.ClientSize.Width - renderedWidth) / 2.0F
+        Dim renderedTop As Single = PicBxTextureView.Top + (PicBxTextureView.ClientSize.Height - renderedHeight) / 2.0F
+
+        Return New RectangleF(renderedLeft, renderedTop, renderedWidth, renderedHeight)
     End Function
 
     Private Function GetPreviewCenterPoint() As Point
@@ -1671,11 +1855,46 @@ Public Class BLP_Orrery_MainForm
         Return 0
     End Function
 
-    Private Sub ScrollPreviewToAnchor(ImageX As Single, ImageY As Single, AnchorPoint As Point)
-        Dim desiredX As Integer = Math.Max(0, CInt(Math.Round(ImageX * PreviewZoomFactor + PicBxTextureView.Left - AnchorPoint.X)))
-        Dim desiredY As Integer = Math.Max(0, CInt(Math.Round(ImageY * PreviewZoomFactor + PicBxTextureView.Top - AnchorPoint.Y)))
+    Private Function CanPanPreview() As Boolean
+        If PicBxTextureView Is Nothing OrElse PicBxTextureView.Image Is Nothing OrElse PnlTextureView Is Nothing Then Return False
+        Return PnlTextureView.HorizontalScroll.Visible OrElse PnlTextureView.VerticalScroll.Visible
+    End Function
 
-        PnlTextureView.AutoScrollPosition = New Point(desiredX, desiredY)
+    Private Sub ScrollPreviewTo(HorizontalOffset As Integer, VerticalOffset As Integer)
+        Dim maximumX As Integer = If(PnlTextureView.HorizontalScroll.Visible,
+                                     Math.Max(0, PnlTextureView.HorizontalScroll.Maximum - PnlTextureView.HorizontalScroll.LargeChange + 1),
+                                     0)
+        Dim maximumY As Integer = If(PnlTextureView.VerticalScroll.Visible,
+                                     Math.Max(0, PnlTextureView.VerticalScroll.Maximum - PnlTextureView.VerticalScroll.LargeChange + 1),
+                                     0)
+        Dim targetX As Integer = Math.Max(0, Math.Min(maximumX, HorizontalOffset))
+        Dim targetY As Integer = Math.Max(0, Math.Min(maximumY, VerticalOffset))
+
+        PnlTextureView.AutoScrollPosition = New Point(targetX, targetY)
+    End Sub
+
+    Private Sub EndPreviewPanning()
+        If Not IsPreviewPanning Then Return
+
+        IsPreviewPanning = False
+        If PicBxTextureView IsNot Nothing AndAlso PicBxTextureView.Capture Then PicBxTextureView.Capture = False
+        UpdatePreviewPanCursor()
+    End Sub
+
+    Private Sub UpdatePreviewPanCursor()
+        If PicBxTextureView Is Nothing Then Return
+        PicBxTextureView.Cursor = If(CanPanPreview(), Cursors.SizeAll, Cursors.Default)
+    End Sub
+
+    Private Sub ScrollPreviewToAnchor(ImageX As Single, ImageY As Single, AnchorPoint As Point)
+        If PicBxTextureView.Image Is Nothing Then Return
+
+        Dim renderedX As Double = PicBxTextureView.Left + ImageX / PicBxTextureView.Image.Width * PicBxTextureView.Width
+        Dim renderedY As Double = PicBxTextureView.Top + ImageY / PicBxTextureView.Image.Height * PicBxTextureView.Height
+        Dim desiredX As Integer = GetHorizontalScrollOffset() + CInt(Math.Round(renderedX - AnchorPoint.X))
+        Dim desiredY As Integer = GetVerticalScrollOffset() + CInt(Math.Round(renderedY - AnchorPoint.Y))
+
+        ScrollPreviewTo(desiredX, desiredY)
     End Sub
 
     Private Sub ApplyPreviewZoomLayout()
@@ -1685,6 +1904,7 @@ Public Class BLP_Orrery_MainForm
             PnlTextureView.AutoScroll = False
             PicBxTextureView.Dock = DockStyle.Fill
             PicBxTextureView.SizeMode = PictureBoxSizeMode.Zoom
+            UpdatePreviewPanCursor()
             Return
         End If
 
@@ -1692,10 +1912,15 @@ Public Class BLP_Orrery_MainForm
             PnlTextureView.AutoScroll = False
             PicBxTextureView.Dock = DockStyle.Fill
             PicBxTextureView.SizeMode = PictureBoxSizeMode.Zoom
+            UpdatePreviewPanCursor()
             Return
         End If
 
+        Dim previousScrollX As Integer = GetHorizontalScrollOffset()
+        Dim previousScrollY As Integer = GetVerticalScrollOffset()
+
         PnlTextureView.AutoScroll = True
+        PnlTextureView.AutoScrollPosition = Point.Empty
         PicBxTextureView.Dock = DockStyle.None
         PicBxTextureView.SizeMode = PictureBoxSizeMode.StretchImage
 
@@ -1705,6 +1930,8 @@ Public Class BLP_Orrery_MainForm
         Dim targetTop As Integer = If(targetHeight < PnlTextureView.ClientSize.Height, (PnlTextureView.ClientSize.Height - targetHeight) \ 2, 0)
 
         PicBxTextureView.Bounds = New Rectangle(targetLeft, targetTop, targetWidth, targetHeight)
+        ScrollPreviewTo(previousScrollX, previousScrollY)
+        UpdatePreviewPanCursor()
     End Sub
 
     Private Sub SetTransparencyBackgroundColor(SelectedColor As Color, Optional RefreshPreview As Boolean = True)
@@ -1925,7 +2152,9 @@ Public Class BLP_Orrery_MainForm
             "2.7 - BioWare DDS orientation" & Environment.NewLine &
             "Added a remembered Settings switch for vertically flipping BioWare/NWN compact DDS previews without changing standard DDS files.",
             "2.8 - Core BioWare DDS orientation" & Environment.NewLine &
-            "Moved BioWare/NWN compact DDS vertical orientation correction into the DDS decoder core so Orrery previews, exports, and Explorer thumbnails share the corrected default."
+            "Moved BioWare/NWN compact DDS vertical orientation correction into the DDS decoder core so Orrery previews, exports, and Explorer thumbnails share the corrected default.",
+            "2.9 - Integrated Explorer thumbnails" & Environment.NewLine &
+            "Unified Orrery and ShellExtCore decoder sources, embedded the versioned Explorer provider into Orrery, added per-user on-the-fly installation and per-format controls, preserved displaced thumbnail handlers, removed the administrator and PowerShell requirement, hardened shell decoding limits and stream reads, and added mouse-drag panning with pointer-anchored zoom."
         })
     End Function
 

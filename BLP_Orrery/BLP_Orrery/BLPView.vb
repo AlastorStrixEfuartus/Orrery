@@ -271,8 +271,7 @@ Module BLPView
 
             If Not (MagicChar = "BLP2") Then ' Checking for correct Magic-Code
                 IsValidVersion = False
-                MessageBox.Show("Unsupported BLP Format")
-                Exit Sub
+                Throw New InvalidDataException("Unsupported BLP format.")
             End If
 
             ' Reading type

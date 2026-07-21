@@ -21,6 +21,7 @@ Public Class OrreryThumbnailProvider
     Private Const E_ALREADY_INITIALIZED As Integer = -2147023649
     Private Const STATFLAG_NONAME As Integer = 1
     Private Const STREAM_SEEK_SET As Integer = 0
+    Private Const MaxInputFileBytes As Long = 268435456L
 
     Private streamData As Byte()
 
@@ -68,23 +69,30 @@ Public Class OrreryThumbnailProvider
         Dim stat As New System.Runtime.InteropServices.ComTypes.STATSTG()
         source.Stat(stat, STATFLAG_NONAME)
 
-        If stat.cbSize <= 0 OrElse stat.cbSize > Integer.MaxValue Then
+        If stat.cbSize <= 0 OrElse stat.cbSize > Integer.MaxValue OrElse stat.cbSize > MaxInputFileBytes Then
             Throw New InvalidDataException("The shell stream length is invalid.")
         End If
 
         Dim data As Byte() = New Byte(CInt(stat.cbSize) - 1) {}
+        Dim readBuffer As Byte() = New Byte(Math.Min(65536, data.Length) - 1) {}
         Dim readPointer As IntPtr = Marshal.AllocCoTaskMem(4)
 
         Try
-            source.Read(data, data.Length, readPointer)
-            Dim bytesRead As Integer = Marshal.ReadInt32(readPointer)
+            Dim totalBytesRead As Integer = 0
 
-            If bytesRead < 0 Then Throw New EndOfStreamException("The shell stream returned an invalid byte count.")
-            If bytesRead = data.Length Then Return data
+            While totalBytesRead < data.Length
+                Dim requestedBytes As Integer = Math.Min(readBuffer.Length, data.Length - totalBytesRead)
+                source.Read(readBuffer, requestedBytes, readPointer)
+                Dim bytesRead As Integer = Marshal.ReadInt32(readPointer)
+                If bytesRead <= 0 OrElse bytesRead > requestedBytes Then
+                    Throw New EndOfStreamException("The shell stream ended before its reported length.")
+                End If
 
-            Dim resized As Byte() = New Byte(bytesRead - 1) {}
-            Buffer.BlockCopy(data, 0, resized, 0, bytesRead)
-            Return resized
+                Buffer.BlockCopy(readBuffer, 0, data, totalBytesRead, bytesRead)
+                totalBytesRead += bytesRead
+            End While
+
+            Return data
         Finally
             Marshal.FreeCoTaskMem(readPointer)
         End Try
@@ -122,26 +130,36 @@ Public Class OrreryThumbnailProvider
     End Sub
 
     Private Shared Sub RegisterShellExtension(extension As String, progId As String, description As String)
-        Using extensionKey As RegistryKey = Registry.ClassesRoot.CreateSubKey(extension)
-            If extensionKey.GetValue(String.Empty) Is Nothing Then extensionKey.SetValue(String.Empty, progId)
-        End Using
-
         Using progIdKey As RegistryKey = Registry.ClassesRoot.CreateSubKey(progId)
             progIdKey.SetValue(String.Empty, description)
         End Using
 
-        Using extensionHandlerKey As RegistryKey = Registry.ClassesRoot.CreateSubKey(extension & "\ShellEx\" & ThumbnailProviderCategory)
-            extensionHandlerKey.SetValue(String.Empty, ProviderClsid)
-        End Using
-
-        Using progIdHandlerKey As RegistryKey = Registry.ClassesRoot.CreateSubKey(progId & "\ShellEx\" & ThumbnailProviderCategory)
-            progIdHandlerKey.SetValue(String.Empty, ProviderClsid)
-        End Using
+        RegisterHandler(extension)
+        RegisterHandler("SystemFileAssociations\" & extension)
+        RegisterHandler(progId)
     End Sub
 
     Private Shared Sub UnregisterShellExtension(extension As String, progId As String)
-        Registry.ClassesRoot.DeleteSubKeyTree(extension & "\ShellEx\" & ThumbnailProviderCategory, False)
-        Registry.ClassesRoot.DeleteSubKeyTree(progId & "\ShellEx\" & ThumbnailProviderCategory, False)
+        UnregisterOwnedHandler(extension)
+        UnregisterOwnedHandler("SystemFileAssociations\" & extension)
+        UnregisterOwnedHandler(progId)
+    End Sub
+
+    Private Shared Sub RegisterHandler(associationPath As String)
+        Using handlerKey As RegistryKey = Registry.ClassesRoot.CreateSubKey(associationPath & "\ShellEx\" & ThumbnailProviderCategory)
+            handlerKey.SetValue(String.Empty, ProviderClsid)
+        End Using
+    End Sub
+
+    Private Shared Sub UnregisterOwnedHandler(associationPath As String)
+        Dim handlerPath As String = associationPath & "\ShellEx\" & ThumbnailProviderCategory
+        Using handlerKey As RegistryKey = Registry.ClassesRoot.OpenSubKey(handlerPath, False)
+            If handlerKey Is Nothing Then Return
+            Dim currentProvider As String = Convert.ToString(handlerKey.GetValue(String.Empty, String.Empty))
+            If Not String.Equals(currentProvider, ProviderClsid, StringComparison.OrdinalIgnoreCase) Then Return
+        End Using
+
+        Registry.ClassesRoot.DeleteSubKeyTree(handlerPath, False)
     End Sub
 
 End Class

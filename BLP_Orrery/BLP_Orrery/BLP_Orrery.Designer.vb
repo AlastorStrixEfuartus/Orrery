@@ -43,6 +43,19 @@ Partial Class BLP_Orrery_MainForm
         Me.ResizeByTextureMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.PreviewActualSizeMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.FlipBioWareDdsMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ExplorerThumbnailsToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ShellStatusMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ShellEnableMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ShellFormatsMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ShellBlpMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ShellDdsMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ShellPltMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ShellIcoMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ShellMenuSeparator1 = New System.Windows.Forms.ToolStripSeparator()
+        Me.ShellApplyMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ShellRefreshMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ShellDetailsMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.ShellOpenFolderMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.AboutToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.GrBxFileInfo = New System.Windows.Forms.GroupBox()
         Me.LblActiveMipMaipValue = New System.Windows.Forms.Label()
@@ -132,7 +145,7 @@ Partial Class BLP_Orrery_MainForm
         '
         'BLPOrreryMainMenuStrip
         '
-        Me.BLPOrreryMainMenuStrip.Items.AddRange(New System.Windows.Forms.ToolStripItem() {Me.FileToolStripMenuItem, Me.ViewToolStripMenuItem, Me.ToolsToolStripMenuItem, Me.AboutToolStripMenuItem})
+        Me.BLPOrreryMainMenuStrip.Items.AddRange(New System.Windows.Forms.ToolStripItem() {Me.FileToolStripMenuItem, Me.ViewToolStripMenuItem, Me.ToolsToolStripMenuItem, Me.ExplorerThumbnailsToolStripMenuItem, Me.AboutToolStripMenuItem})
         Me.BLPOrreryMainMenuStrip.Location = New System.Drawing.Point(0, 0)
         Me.BLPOrreryMainMenuStrip.Name = "BLPOrreryMainMenuStrip"
         Me.BLPOrreryMainMenuStrip.Size = New System.Drawing.Size(710, 24)
@@ -237,6 +250,91 @@ Partial Class BLP_Orrery_MainForm
         Me.FlipBioWareDdsMenuItem.Name = "FlipBioWareDdsMenuItem"
         Me.FlipBioWareDdsMenuItem.Size = New System.Drawing.Size(183, 22)
         Me.FlipBioWareDdsMenuItem.Text = "Flip BioWare DDS"
+        '
+        'ExplorerThumbnailsToolStripMenuItem
+        '
+        Me.ExplorerThumbnailsToolStripMenuItem.DropDownItems.AddRange(New System.Windows.Forms.ToolStripItem() {Me.ShellStatusMenuItem, Me.ShellEnableMenuItem, Me.ShellFormatsMenuItem, Me.ShellMenuSeparator1, Me.ShellApplyMenuItem, Me.ShellRefreshMenuItem, Me.ShellDetailsMenuItem, Me.ShellOpenFolderMenuItem})
+        Me.ExplorerThumbnailsToolStripMenuItem.Name = "ExplorerThumbnailsToolStripMenuItem"
+        Me.ExplorerThumbnailsToolStripMenuItem.Size = New System.Drawing.Size(128, 20)
+        Me.ExplorerThumbnailsToolStripMenuItem.Text = "Explorer Thumbnails"
+        '
+        'ShellStatusMenuItem
+        '
+        Me.ShellStatusMenuItem.Enabled = False
+        Me.ShellStatusMenuItem.Name = "ShellStatusMenuItem"
+        Me.ShellStatusMenuItem.Size = New System.Drawing.Size(270, 22)
+        Me.ShellStatusMenuItem.Text = "Status: checking..."
+        '
+        'ShellEnableMenuItem
+        '
+        Me.ShellEnableMenuItem.CheckOnClick = True
+        Me.ShellEnableMenuItem.Name = "ShellEnableMenuItem"
+        Me.ShellEnableMenuItem.Size = New System.Drawing.Size(270, 22)
+        Me.ShellEnableMenuItem.Text = "Enable Orrery thumbnails"
+        '
+        'ShellFormatsMenuItem
+        '
+        Me.ShellFormatsMenuItem.DropDownItems.AddRange(New System.Windows.Forms.ToolStripItem() {Me.ShellBlpMenuItem, Me.ShellDdsMenuItem, Me.ShellPltMenuItem, Me.ShellIcoMenuItem})
+        Me.ShellFormatsMenuItem.Name = "ShellFormatsMenuItem"
+        Me.ShellFormatsMenuItem.Size = New System.Drawing.Size(270, 22)
+        Me.ShellFormatsMenuItem.Text = "Use Orrery for"
+        '
+        'ShellBlpMenuItem
+        '
+        Me.ShellBlpMenuItem.CheckOnClick = True
+        Me.ShellBlpMenuItem.Name = "ShellBlpMenuItem"
+        Me.ShellBlpMenuItem.Size = New System.Drawing.Size(284, 22)
+        Me.ShellBlpMenuItem.Text = ".BLP - Blizzard textures"
+        '
+        'ShellDdsMenuItem
+        '
+        Me.ShellDdsMenuItem.CheckOnClick = True
+        Me.ShellDdsMenuItem.Name = "ShellDdsMenuItem"
+        Me.ShellDdsMenuItem.Size = New System.Drawing.Size(284, 22)
+        Me.ShellDdsMenuItem.Text = ".DDS - DDS and BioWare/NWN textures"
+        '
+        'ShellPltMenuItem
+        '
+        Me.ShellPltMenuItem.CheckOnClick = True
+        Me.ShellPltMenuItem.Name = "ShellPltMenuItem"
+        Me.ShellPltMenuItem.Size = New System.Drawing.Size(284, 22)
+        Me.ShellPltMenuItem.Text = ".PLT - Neverwinter Nights layers"
+        '
+        'ShellIcoMenuItem
+        '
+        Me.ShellIcoMenuItem.CheckOnClick = True
+        Me.ShellIcoMenuItem.Name = "ShellIcoMenuItem"
+        Me.ShellIcoMenuItem.Size = New System.Drawing.Size(284, 22)
+        Me.ShellIcoMenuItem.Text = ".ICO - Windows icons"
+        '
+        'ShellMenuSeparator1
+        '
+        Me.ShellMenuSeparator1.Name = "ShellMenuSeparator1"
+        Me.ShellMenuSeparator1.Size = New System.Drawing.Size(267, 6)
+        '
+        'ShellApplyMenuItem
+        '
+        Me.ShellApplyMenuItem.Name = "ShellApplyMenuItem"
+        Me.ShellApplyMenuItem.Size = New System.Drawing.Size(270, 22)
+        Me.ShellApplyMenuItem.Text = "Apply / Update Now"
+        '
+        'ShellRefreshMenuItem
+        '
+        Me.ShellRefreshMenuItem.Name = "ShellRefreshMenuItem"
+        Me.ShellRefreshMenuItem.Size = New System.Drawing.Size(270, 22)
+        Me.ShellRefreshMenuItem.Text = "Refresh Windows Explorer"
+        '
+        'ShellDetailsMenuItem
+        '
+        Me.ShellDetailsMenuItem.Name = "ShellDetailsMenuItem"
+        Me.ShellDetailsMenuItem.Size = New System.Drawing.Size(270, 22)
+        Me.ShellDetailsMenuItem.Text = "Status Details..."
+        '
+        'ShellOpenFolderMenuItem
+        '
+        Me.ShellOpenFolderMenuItem.Name = "ShellOpenFolderMenuItem"
+        Me.ShellOpenFolderMenuItem.Size = New System.Drawing.Size(270, 22)
+        Me.ShellOpenFolderMenuItem.Text = "Open Installed Provider Folder"
         '
         'AboutToolStripMenuItem
         '
@@ -630,6 +728,19 @@ Partial Class BLP_Orrery_MainForm
     Friend WithEvents ResizeByTextureMenuItem As ToolStripMenuItem
     Friend WithEvents PreviewActualSizeMenuItem As ToolStripMenuItem
     Friend WithEvents FlipBioWareDdsMenuItem As ToolStripMenuItem
+    Friend WithEvents ExplorerThumbnailsToolStripMenuItem As ToolStripMenuItem
+    Friend WithEvents ShellStatusMenuItem As ToolStripMenuItem
+    Friend WithEvents ShellEnableMenuItem As ToolStripMenuItem
+    Friend WithEvents ShellFormatsMenuItem As ToolStripMenuItem
+    Friend WithEvents ShellBlpMenuItem As ToolStripMenuItem
+    Friend WithEvents ShellDdsMenuItem As ToolStripMenuItem
+    Friend WithEvents ShellPltMenuItem As ToolStripMenuItem
+    Friend WithEvents ShellIcoMenuItem As ToolStripMenuItem
+    Friend WithEvents ShellMenuSeparator1 As ToolStripSeparator
+    Friend WithEvents ShellApplyMenuItem As ToolStripMenuItem
+    Friend WithEvents ShellRefreshMenuItem As ToolStripMenuItem
+    Friend WithEvents ShellDetailsMenuItem As ToolStripMenuItem
+    Friend WithEvents ShellOpenFolderMenuItem As ToolStripMenuItem
     Friend WithEvents BackgroundClrMenuItem As ToolStripMenuItem
     Friend WithEvents ClrPickBackGround As ColorDialog
     Friend WithEvents LblResolutionValue As Label

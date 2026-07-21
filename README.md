@@ -2,10 +2,10 @@
 
 BLP Orrery is a Windows texture preview and inspection tool for game and modding workflows. It focuses on formats that normal image viewers often do not handle well, especially Blizzard BLP files and BioWare/Neverwinter Nights DDS and PLT textures.
 
-The repository contains two companion projects:
+The repository contains two integrated projects:
 
 - **BLP Orrery** - a WinForms desktop viewer for opening, inspecting, previewing, zooming, navigating, and exporting texture files.
-- **WindowsShellExtension Orrery** - a Windows Explorer thumbnail provider built from the Orrery decoding core.
+- **WindowsShellExtension Orrery** - a Windows Explorer thumbnail provider built from the same authoritative decoder sources and embedded into every BLP Orrery build.
 
 ## Supported Formats
 
@@ -45,20 +45,18 @@ The Windows Shell Extension provides Explorer thumbnails for:
 - PLT layer rows with selectable layer highlighting
 - Optional resize-to-texture mode for 1:1 inspection
 - About window with project splash art, supported formats, author information, and changelog
+- Integrated Explorer thumbnail controls with live status, a master enable switch, and independent `.blp`, `.dds`, `.plt`, and `.ico` selection
+- Per-user shell-extension installation and updates without PowerShell, RegAsm, administrator elevation, or a permanently unpacked side package
 
-## Shell Extension Package
+## Integrated Explorer Thumbnails
 
-`WindowsShellExtension_Orrery_Package` contains installer and uninstaller scripts intended for sharing:
+Open **Explorer Thumbnails** in BLP Orrery's main menu. The menu can enable or disable the provider, choose the formats Orrery owns, apply an embedded provider update, refresh Explorer, display diagnostics, and open the immutable installation folder.
 
-- `Install-OrreryThumbnails.cmd`
-- `Install-OrreryThumbnails.ps1`
-- `Uninstall-OrreryThumbnails.cmd`
-- `Uninstall-OrreryThumbnails.ps1`
-- `README.txt`
+The provider is extracted from the executable to `%LOCALAPPDATA%\BLP Orrery\ShellExtension\<payload-hash>`. Updates use a new hash-versioned directory instead of overwriting a DLL that Explorer may have loaded. Registration is written to the current user's 64-bit class registry, and displaced per-user handlers are restored when a format is disabled. Existing machine-wide Orrery registrations are overridden per user, so old installations do not need to be removed before using the integrated controls.
 
-The recipient should extract the package to a permanent folder, run the installer as administrator, and restart Explorer or reopen the folder if thumbnails do not refresh immediately.
+See [`docs/EXPLORER_THUMBNAILS.md`](docs/EXPLORER_THUMBNAILS.md) for architecture, recovery, and packaging details.
 
-The package scripts expect the compiled shell extension DLL to exist in `bin/`. Build the `WindowsShellExtension_Orrery` project in Release mode before packaging binaries for distribution.
+Obsolete standalone shell-extension packages and earlier desktop release archives are not retained. `WindowsShellExtension_Orrery` remains in the repository because it is the required source project for the provider embedded in BLP Orrery 2.9.
 
 ## Build
 
@@ -70,11 +68,13 @@ Build BLP Orrery:
 & 'C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe' BLP_Orrery\BLP_Orrery.sln /p:Configuration=Release /p:Platform="Any CPU" /p:UseSharedCompilation=false
 ```
 
-Build the shell extension:
+Build the shell extension directly:
 
 ```powershell
 & 'C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe' WindowsShellExtension_Orrery\WindowsShellExtension_Orrery.sln /p:Configuration=Release /p:Platform="Any CPU"
 ```
+
+Building BLP Orrery automatically builds the x64 shell provider and embeds that exact output into `BLP_Orrery.exe`.
 
 ## Author
 

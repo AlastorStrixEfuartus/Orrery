@@ -9,5 +9,5 @@ Imports System.Runtime.InteropServices
 <Assembly: AssemblyCopyright("Copyright (c) Alastor Strix'Efuartus")>
 <Assembly: ComVisible(False)>
 <Assembly: Guid("22AD3D32-26B1-438B-8E00-4AF8563A07FE")>
-<Assembly: AssemblyVersion("1.3.0.0")>
-<Assembly: AssemblyFileVersion("1.3.0.0")>
+<Assembly: AssemblyVersion("1.4.0.0")>
+<Assembly: AssemblyFileVersion("1.4.0.0")>
