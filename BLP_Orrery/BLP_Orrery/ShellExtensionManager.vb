@@ -268,7 +268,7 @@ Friend NotInheritable Class OrreryShellExtensionManager
     Private Shared Sub RegisterComServer(Payload As ShellPayload)
         Dim assemblyFullName As String = Payload.AssemblyName.FullName
         Dim runtimeVersion As String = "v4.0.30319"
-        Dim codeBase As String = New Uri(Payload.Path).AbsoluteUri
+        Dim codeBase As String = GetManagedCodeBase(Payload.Path)
         Dim existingRegistration As ComRegistration = ReadComRegistration(RegistryHive.CurrentUser)
 
         Using classes As RegistryKey = OpenClassesRoot(RegistryHive.CurrentUser, True)
@@ -328,6 +328,11 @@ Friend NotInheritable Class OrreryShellExtensionManager
         Key.SetValue("RuntimeVersion", RuntimeVersion, RegistryValueKind.String)
         Key.SetValue("CodeBase", CodeBase, RegistryValueKind.String)
     End Sub
+
+    Private Shared Function GetManagedCodeBase(FilePath As String) As String
+        Dim fullPath As String = Path.GetFullPath(FilePath)
+        Return "file:///" & fullPath.Replace(Path.DirectorySeparatorChar, "/"c)
+    End Function
 
     Private Shared Sub UnregisterPerUserComServer()
         Using classes As RegistryKey = OpenClassesRoot(RegistryHive.CurrentUser, True)
